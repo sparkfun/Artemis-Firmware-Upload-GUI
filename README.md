@@ -7,7 +7,7 @@ The Artemis Firmware Uploader (AFU) is a simple to use Windows GUI for updating 
 
 To use:
 
-* Download the repo ZIP
+* Download the [repo ZIP](https://github.com/sparkfun/Artemis-Firmware-Upload-GUI/archive/master.zip)
 * Run artemis_firmware_uploader_gui.exe
 * Select the firmware file you'd like to upload (should end in *.bin*)
 * Attach the Artemis target board over USB
