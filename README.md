@@ -16,7 +16,7 @@ To use:
 
 Be sure you are loading firmware for your board or product. While it's unlikely to damage Artemis by loading incorrect firmware it will erase the pre-existing firmware and may lead to the peripherals being controlled incorrectly.
 
-A *Blink.bin* firmware file is included. This will cause pin 5 to blink at 1Hz.
+A *Blink.bin* firmware file is included. This will cause pin 5 (the status LED on [ATP](https://www.sparkfun.com/products/15442)to blink at 1Hz.
 
 Pressing the 'Update Bootloader' button will erase all firmware on the Artemis and load the latest bootloader firmware. This is handy when SparkFun releases updates to the [SVL](https://github.com/sparkfun/SparkFun_Apollo3_AmbiqSuite_BSPs/blob/master/common/examples/artemis_svl/src/main.c).
 
