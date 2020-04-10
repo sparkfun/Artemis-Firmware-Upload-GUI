@@ -21,7 +21,7 @@ from serial.tools.list_ports import comports
 from PyQt5.QtCore import QSettings, QProcess, QTimer
 from PyQt5.QtWidgets import QWidget, QLabel, QComboBox, QGridLayout, \
     QPushButton, QApplication, QLineEdit, QFileDialog, QPlainTextEdit
-from PyQt5.QtGui import QCloseEvent, QTextCursor
+from PyQt5.QtGui import QCloseEvent, QTextCursor, QIcon
 
 # Setting constants
 SETTING_PORT_NAME = 'port_name'
@@ -309,6 +309,7 @@ if __name__ == '__main__':
     app = QApplication([])
     app.setOrganizationName('SparkFun')
     app.setApplicationName('Artemis Firmware Uploader ' + guiVersion)
+    app.setWindowIcon(QIcon("tools/Artemis-Logo-Rounded.png"))
     w = RemoteWidget()
     w.show()
     sys.exit(app.exec_())
