@@ -88,6 +88,8 @@ class RemoteWidget(QWidget):
     def __init__(self, parent: QWidget = None) -> None:
         super().__init__(parent)
 
+        self.serialDataSeen = False
+
         # ///// START of code taken from artemis_svl.py
 
         # ***********************************************************************************
@@ -402,7 +404,7 @@ class RemoteWidget(QWidget):
             CRCH = (self.crcTable[tableAddr] >> 8) ^ (crc & 0xFF)
             CRCL = self.crcTable[tableAddr] & 0x00FF
             crc = CRCH << 8 | CRCL
-        self.addMessage("\tcrc is " +str(crc))
+        self.addMessage("\tcrc is " + str(crc))
         return crc
 
 
@@ -411,11 +413,18 @@ class RemoteWidget(QWidget):
 
         packet = {'len':0, 'cmd':0, 'data':0, 'crc':1, 'timeout':1}
 
+        self.serialDataSeen = False
+##        while(self.ser.waitForReadyRead(500)): # wait for data for up to 500ms (BLOCKING)
+##            pass
         self.ser.waitForReadyRead(500) # wait for data for up to 500ms (BLOCKING)
-        if(self.serialBytesAvailable == 0):
+        if (self.serialDataSeen):
+            self.addMessage("\tserial data seen")
+            self.serialDataSeen = False
+        
+        if(self.ser.bytesAvailable() == 0): # self.serialBytesAvailable is updated by @pyqtSlot() receive
             self.addMessage("\tno bytes received")
             return packet
-        elif(self.serialBytesAvailable < 2):
+        elif(self.ser.bytesAvailable() < 2):
             self.addMessage("\tpacket length < 2")
             return packet
         n = self.ser.read(2) # get the length bytes
@@ -423,14 +432,23 @@ class RemoteWidget(QWidget):
 
         packet['len'] = int.from_bytes(n, byteorder='big', signed=False)
         self.addMessage("\tpacket length " + str(packet['len']))
-        payload = self.ser.readAll()
-        self.addMessage("\tpayload read")
+
+        if(packet['len'] == 0): # Check for an empty packet
+            return packet
+        
+        if (self.ser.bytesAvailable() >= packet['len']):
+            payload = self.ser.read(packet['len'])
+            self.addMessage("\tpayload read")
+        else:
+            self.addMessage("\tnot enough bytes in the serial buffer")
+            return packet
 
         if(len(payload) != packet['len']):
             self.addMessage("\tincorrect payload length")
             return packet
         
         packet['timeout'] = 0                           # all bytes received, so timeout is not true
+
         packet['cmd'] = payload[0]                      # cmd is the first byte of the payload
         packet['data'] = payload[1:packet['len']-2]     # the data is the part of the payload that is not cmd or crc
         self.addMessage("\tchecking crc")
@@ -438,18 +456,23 @@ class RemoteWidget(QWidget):
 
         return packet
 
+
     def send_packet(self, cmd, data) -> None:
         """Send a packet"""
         
-        data = bytearra(data)
+        data = bytearray(data)
         num_bytes = 3 + len(data)
+        self.addMessage("\tsending packet length " + str(num_bytes))
         payload = bytearray(cmd.to_bytes(1,'big'))
         payload.extend(data)
-        crc = get_crc16(payload)
+        crc = self.get_crc16(payload)
         payload.extend(bytearray(crc.to_bytes(2,'big')))
+        self.addMessage("\tsending packet crc " + str(crc))
 
         self.ser.write(num_bytes.to_bytes(2,'big'))
+        self.addMessage("\t" + str(num_bytes.to_bytes(2,'big')))
         self.ser.write(bytes(payload))
+        self.addMessage("\t" + str(bytes(payload)))
 
     def phase_setup(self) -> None:
         """Setup: signal baud rate, get version, and command BL enter"""
@@ -478,13 +501,13 @@ class RemoteWidget(QWidget):
         self.addMessage("\tGot SVL Bootloader Version: " + str(int.from_bytes(packet['data'], 'big')))
         self.addMessage("\tSending \'enter bootloader\' command")
 
-        self.send_packet(SVL_CMD_BL, b'')
+        self.send_packet(self.SVL_CMD_BL, b'')
         self.addMessage("\tfinished send_packet")
 
         # Now enter the bootload phase
 
 
-    def phase_bootload(self) -> None:
+    def phase_bootload(self) -> bool:
         """Bootloader phase (Artemis is locked in)"""
 
         startTime = time.time()
@@ -493,7 +516,7 @@ class RemoteWidget(QWidget):
         resend_max = 4
         resend_count = 0
 
-        verboseprint('\nphase:\tbootload')
+        self.addMessage("phase:\tbootload")
 
         with open(self.fileLocation_lineedit.text(), mode='rb') as binfile:
             application = binfile.read()
@@ -503,67 +526,60 @@ class RemoteWidget(QWidget):
             curr_frame = 0
             progressChars = 0
 
-            if (not args.verbose):
-                print("[", end='')
-
-            verboseprint('\thave ' + str(total_len) +
-                         ' bytes to send in ' + str(total_frames) + ' frames')
+            self.addMessage("\thave " + str(total_len) +
+                         " bytes to send in " + str(total_frames) + " frames")
 
             bl_done = False
             bl_failed = False
             while((not bl_done) and (not bl_failed)):
                     
-                packet = wait_for_packet(ser)               # wait for indication by Artemis
+                packet = self.wait_for_packet()               # wait for indication by Artemis
                 if(packet['timeout'] or packet['crc']):
-                    print('\n\terror receiving packet')
-                    print(packet)
-                    print('\n')
+                    self.addMessage("\terror receiving packet")
                     bl_failed = True
                     bl_done = True
 
-                if( packet['cmd'] == SVL_CMD_NEXT ):
-                    # verboseprint('\tgot frame request')
+                if( packet['cmd'] == self.SVL_CMD_NEXT ):
+                    self.addMessage("\tgot frame request")
                     curr_frame += 1
                     resend_count = 0
-                elif( packet['cmd'] == SVL_CMD_RETRY ):
-                    verboseprint('\t\tretrying...')
+                elif( packet['cmd'] == self.SVL_CMD_RETRY ):
+                    self.addMessage("\t\tretrying...")
                     resend_count += 1
                     if( resend_count >= resend_max ):
                         bl_failed = True
                         bl_done = True
                 else:
-                    print('unknown error')
+                    self.addMessage("unknown error")
                     bl_failed = True
                     bl_done = True
 
                 if( curr_frame <= total_frames ):
                     frame_data = application[((curr_frame-1)*frame_size):((curr_frame-1+1)*frame_size)]
-                    if(args.verbose):
-                        verboseprint('\tsending frame #'+str(curr_frame) +
-                                     ', length: '+str(len(frame_data)))
-                    else:
-                        percentComplete = curr_frame * 100 / total_frames
-                        percentCompleteInChars = math.ceil(
-                            percentComplete / 100 * barWidthInCharacters)
-                        while(progressChars < percentCompleteInChars):
-                            progressChars = progressChars + 1
-                            print('#', end='', flush=True)
-                        if (percentComplete == 100):
-                            print("]", end='')
+                    self.addMessage("\tsending frame #" + str(curr_frame) +
+                                     ", length: " + str(len(frame_data)))
+##                    percentComplete = curr_frame * 100 / total_frames
+##                    percentCompleteInChars = math.ceil(
+##                        percentComplete / 100 * barWidthInCharacters)
+##                    while(progressChars < percentCompleteInChars):
+##                        progressChars = progressChars + 1
+##                        print('#', end='', flush=True)
+##                    if (percentComplete == 100):
+##                        print("]", end='')
 
-                    send_packet(ser, SVL_CMD_FRAME, frame_data)
+                    self.send_packet(self.SVL_CMD_FRAME, frame_data)
 
                 else:
-                    send_packet(ser, SVL_CMD_DONE, b'')
+                    self.send_packet(self.SVL_CMD_DONE, b'')
                     bl_done = True
 
             if( bl_failed == False ):
-                twopartprint('\n\t', 'Upload complete')
+                self.addMessage("\tUpload complete")
                 endTime = time.time()
                 bps = total_len / (endTime - startTime)
-                verboseprint('\n\tNominal bootload bps: ' + str(round(bps, 2)))
+                self.addMessage("\tNominal bootload bps: " + str(round(bps, 2)))
             else:
-                twopartprint('\n\t', 'Upload failed')
+                self.addMessage("\tUpload failed")
 
             return bl_failed
 
@@ -598,8 +614,7 @@ class RemoteWidget(QWidget):
 
     @pyqtSlot()
     def receive(self) -> None:
-        self.serialBytesAvailable = self.ser.bytesAvailable()
-        #self.addMessage(">" + str(self.serialBytesAvailable))
+        self.serialDataSeen = True
 
     def upload_main(self) -> None:
         """SparkFun Variable Loader (Variable baud rate bootloader for Artemis Apollo3 modules)"""
