@@ -47,19 +47,17 @@ ambiq_bin2board.exe --bin "artemis_svl.bin" --load-address-blob 0x20000 --magic-
 #   ser.read(n) will time out after 2*ser.timeout
 # Incoming UART data is buffered behind the scenes, probably by the OS.
 
-# Note: in this version we are using PyQT5's built-in serial suport (PyQt5.QtSerialPort)
-#   so things are a little different! We use ser.waitForReadyRead(500) instead of timeout.
-
 from typing import Iterator, Tuple
-from PyQt5.QtCore import QSettings, QProcess, QTimer, Qt, QIODevice, pyqtSlot
+from PyQt5.QtCore import QSettings, QProcess, QTimer
 from PyQt5.QtWidgets import QWidget, QLabel, QComboBox, QGridLayout, \
     QPushButton, QApplication, QLineEdit, QFileDialog, QPlainTextEdit
 from PyQt5.QtGui import QCloseEvent, QTextCursor, QIcon
-from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
+from PyQt5.QtSerialPort import QSerialPortInfo
 import sys
 import time
 import math
 import os
+import serial
 
 # Setting constants
 SETTING_PORT_NAME = 'port_name'
@@ -87,8 +85,6 @@ class RemoteWidget(QWidget):
 
     def __init__(self, parent: QWidget = None) -> None:
         super().__init__(parent)
-
-        self.serialDataSeen = False
 
         # ///// START of code taken from artemis_svl.py
 
@@ -229,6 +225,7 @@ class RemoteWidget(QWidget):
         self.messages.ensureCursorVisible()
         self.messages.appendPlainText(msg)
         self.messages.ensureCursorVisible()
+        self.repaint()
 
     def _load_settings(self) -> None:
         """Load settings on startup."""
@@ -256,8 +253,7 @@ class RemoteWidget(QWidget):
         """Save settings on shutdown."""
         settings = QSettings()
         settings.setValue(SETTING_PORT_NAME, self.port)
-        settings.setValue(SETTING_FILE_LOCATION,
-                          self.fileLocation_lineedit.text())
+        settings.setValue(SETTING_FILE_LOCATION, self.fileLocation_lineedit.text())
         settings.setValue(SETTING_BAUD_RATE, self.baudRate)
 
     def show_error_message(self, msg: str) -> None:
@@ -404,7 +400,7 @@ class RemoteWidget(QWidget):
             CRCH = (self.crcTable[tableAddr] >> 8) ^ (crc & 0xFF)
             CRCL = self.crcTable[tableAddr] & 0x00FF
             crc = CRCH << 8 | CRCL
-        self.addMessage("\tcrc is " + str(crc))
+        #self.addMessage("\tcrc is " + str(crc))
         return crc
 
 
@@ -413,46 +409,27 @@ class RemoteWidget(QWidget):
 
         packet = {'len':0, 'cmd':0, 'data':0, 'crc':1, 'timeout':1}
 
-        self.serialDataSeen = False
-##        while(self.ser.waitForReadyRead(500)): # wait for data for up to 500ms (BLOCKING)
-##            pass
-        self.ser.waitForReadyRead(500) # wait for data for up to 500ms (BLOCKING)
-        if (self.serialDataSeen):
-            self.addMessage("\tserial data seen")
-            self.serialDataSeen = False
-        
-        if(self.ser.bytesAvailable() == 0): # self.serialBytesAvailable is updated by @pyqtSlot() receive
-            self.addMessage("\tno bytes received")
-            return packet
-        elif(self.ser.bytesAvailable() < 2):
-            self.addMessage("\tpacket length < 2")
-            return packet
         n = self.ser.read(2) # get the length bytes
-        self.addMessage("\tpacket length read")
+        if(len(n) < 2):
+            #self.addMessage("\tpacket length < 2")
+            return packet
 
         packet['len'] = int.from_bytes(n, byteorder='big', signed=False)
-        self.addMessage("\tpacket length " + str(packet['len']))
+        #self.addMessage("\tpacket length " + str(packet['len']))
 
         if(packet['len'] == 0): # Check for an empty packet
             return packet
-        
-        if (self.ser.bytesAvailable() >= packet['len']):
-            payload = self.ser.read(packet['len'])
-            self.addMessage("\tpayload read")
-        else:
-            self.addMessage("\tnot enough bytes in the serial buffer")
-            return packet
+
+        payload = self.ser.read(packet['len']) #read bytes (or timeout)
 
         if(len(payload) != packet['len']):
-            self.addMessage("\tincorrect payload length")
+            #self.addMessage("\tincorrect payload length")
             return packet
         
         packet['timeout'] = 0                           # all bytes received, so timeout is not true
-
         packet['cmd'] = payload[0]                      # cmd is the first byte of the payload
         packet['data'] = payload[1:packet['len']-2]     # the data is the part of the payload that is not cmd or crc
-        self.addMessage("\tchecking crc")
-        packet['crc'] = self.get_crc16(payload)              # performing the crc on the whole payload should return 0
+        packet['crc'] = self.get_crc16(payload)         # performing the crc on the whole payload should return 0
 
         return packet
 
@@ -462,47 +439,45 @@ class RemoteWidget(QWidget):
         
         data = bytearray(data)
         num_bytes = 3 + len(data)
-        self.addMessage("\tsending packet length " + str(num_bytes))
+        #self.addMessage("\tsending packet length " + str(num_bytes))
         payload = bytearray(cmd.to_bytes(1,'big'))
         payload.extend(data)
         crc = self.get_crc16(payload)
         payload.extend(bytearray(crc.to_bytes(2,'big')))
-        self.addMessage("\tsending packet crc " + str(crc))
+        #self.addMessage("\tsending packet crc " + str(crc))
 
         self.ser.write(num_bytes.to_bytes(2,'big'))
-        self.addMessage("\t" + str(num_bytes.to_bytes(2,'big')))
+        #self.addMessage("\t" + str(num_bytes.to_bytes(2,'big')))
         self.ser.write(bytes(payload))
-        self.addMessage("\t" + str(bytes(payload)))
+        #self.addMessage("\t" + str(bytes(payload)))
 
     def phase_setup(self) -> None:
         """Setup: signal baud rate, get version, and command BL enter"""
 
         baud_detect_byte = b'U'
 
-        self.addMessage("phase:\tsetup")
+        self.addMessage("Phase:\tSetup")
         
-        # Handle the serial startup blip
-        self.ser.clear(QSerialPort.Input)
-        self.serialBytesAvailable = 0
-        self.addMessage("\tcleared startup blip")
+        self.ser.reset_input_buffer()                        # Handle the serial startup blip
+        self.addMessage("\tCleared startup blip")
 
-        self.ser.writeData(baud_detect_byte)             # send the baud detection character
-        self.addMessage("\tsent baud_detect_byte")
+        self.ser.write(baud_detect_byte)            # send the baud detection character
+        #self.addMessage("\tsent baud_detect_byte")
 
         packet = self.wait_for_packet()
-        self.addMessage("\tfinished wait_for_packet")
+        #self.addMessage("\twait_for_packet complete")
         if(packet['timeout']):
-            self.addMessage("\twait_for_packet timeout")
+            #self.addMessage("\twait_for_packet timeout")
             return
         if(packet['crc']):
-            self.addMessage("\twait_for_packet crc error")
+            #self.addMessage("\twait_for_packet crc error")
             return
         
         self.addMessage("\tGot SVL Bootloader Version: " + str(int.from_bytes(packet['data'], 'big')))
         self.addMessage("\tSending \'enter bootloader\' command")
 
         self.send_packet(self.SVL_CMD_BL, b'')
-        self.addMessage("\tfinished send_packet")
+        #self.addMessage("\tfinished send_packet")
 
         # Now enter the bootload phase
 
@@ -516,7 +491,7 @@ class RemoteWidget(QWidget):
         resend_max = 4
         resend_count = 0
 
-        self.addMessage("phase:\tbootload")
+        self.addMessage("Phase:\tBootload")
 
         with open(self.fileLocation_lineedit.text(), mode='rb') as binfile:
             application = binfile.read()
@@ -526,144 +501,86 @@ class RemoteWidget(QWidget):
             curr_frame = 0
             progressChars = 0
 
-            self.addMessage("\thave " + str(total_len) +
-                         " bytes to send in " + str(total_frames) + " frames")
+            self.addMessage("\tSending " + str(total_len) +
+                         " bytes in " + str(total_frames) + " frames")
 
             bl_done = False
             bl_failed = False
             while((not bl_done) and (not bl_failed)):
                     
                 packet = self.wait_for_packet()               # wait for indication by Artemis
+
                 if(packet['timeout'] or packet['crc']):
-                    self.addMessage("\terror receiving packet")
+                    self.addMessage("\tError receiving packet")
                     bl_failed = True
                     bl_done = True
 
                 if( packet['cmd'] == self.SVL_CMD_NEXT ):
-                    self.addMessage("\tgot frame request")
+                    self.addMessage("\tGot frame request")
                     curr_frame += 1
                     resend_count = 0
                 elif( packet['cmd'] == self.SVL_CMD_RETRY ):
-                    self.addMessage("\t\tretrying...")
+                    self.addMessage("\tRetrying...")
                     resend_count += 1
                     if( resend_count >= resend_max ):
                         bl_failed = True
                         bl_done = True
                 else:
-                    self.addMessage("unknown error")
+                    self.addMessage("\tUnknown error")
                     bl_failed = True
                     bl_done = True
 
                 if( curr_frame <= total_frames ):
                     frame_data = application[((curr_frame-1)*frame_size):((curr_frame-1+1)*frame_size)]
-                    self.addMessage("\tsending frame #" + str(curr_frame) +
-                                     ", length: " + str(len(frame_data)))
-##                    percentComplete = curr_frame * 100 / total_frames
-##                    percentCompleteInChars = math.ceil(
-##                        percentComplete / 100 * barWidthInCharacters)
-##                    while(progressChars < percentCompleteInChars):
-##                        progressChars = progressChars + 1
-##                        print('#', end='', flush=True)
-##                    if (percentComplete == 100):
-##                        print("]", end='')
-
+                    self.addMessage("\tSending frame #" + str(curr_frame) + ", length: " + str(len(frame_data)))
                     self.send_packet(self.SVL_CMD_FRAME, frame_data)
-
                 else:
                     self.send_packet(self.SVL_CMD_DONE, b'')
                     bl_done = True
 
             if( bl_failed == False ):
-                self.addMessage("\tUpload complete")
+                self.addMessage("Upload complete!")
                 endTime = time.time()
                 bps = total_len / (endTime - startTime)
-                self.addMessage("\tNominal bootload bps: " + str(round(bps, 2)))
+                self.addMessage("Nominal bootload " + str(round(bps, 2)) + " bytes/sec\n")
             else:
-                self.addMessage("\tUpload failed")
+                self.addMessage("Upload failed!\n")
 
             return bl_failed
 
-
-##    def phase_serial_port_help(self) -> None:
-##        """Help if serial port could not be opened"""
-##        devices = list_ports.comports()
-##
-##        # First check to see if user has the given port open
-##        for dev in devices:
-##            if(dev.device.upper() == args.port.upper()):
-##                print(dev.device + " is currently open. Please close any other terminal programs that may be using " +
-##                        dev.device + " and try again.")
-##                exit()
-##
-##        # otherwise, give user a list of possible com ports
-##        print(args.port.upper() +
-##                " not found but we detected the following serial ports:")
-##        for dev in devices:
-##            if 'CH340' in dev.description:
-##                print(
-##                    dev.description + ": Likely an Arduino or derivative. Try " + dev.device + ".")
-##            elif 'FTDI' in dev.description:
-##                print(
-##                    dev.description + ": Likely an Arduino or derivative. Try " + dev.device + ".")
-##            elif 'USB Serial Device' in dev.description:
-##                print(
-##                    dev.description + ": Possibly an Arduino or derivative.")
-##            else:
-##                print(dev.description)
-
-
-    @pyqtSlot()
-    def receive(self) -> None:
-        self.serialDataSeen = True
 
     def upload_main(self) -> None:
         """SparkFun Variable Loader (Variable baud rate bootloader for Artemis Apollo3 modules)"""
         try:
             num_tries = 3
 
-            #self.messages.clear() # Clear the message window
+            self.messages.clear() # Clear the message window
 
-            self.addMessage("\n\nArtemis SVL Bootloader")
-
-            # Open the serial port
-            self.addMessage("Opening " + str(self.port) + " at " + str(self.baudRate) + " Baud")
-            self.ser = QSerialPort()
-            self.ser.setPortName(self.port)
-            self.addMessage("PortName set")
-            if (self.baudRate == 921600):
-                self.ser.setBaudRate(921600)
-            elif (self.baudRate == 460800):
-                self.ser.setBaudRate(460800)
-            else:
-                self.ser.setBaudRate(115200)
-            self.addMessage("BaudRate set")
-            self.ser.open(QIODevice.ReadWrite)
-            self.addMessage("Port open")
-            self.ser.readyRead.connect(self.receive) # Connect the receiver
-            self.addMessage("readyRead connected")
-##            self.ser.readyRead.connect(self.receive) # Connect the receiver
+            self.addMessage("Artemis SVL Bootloader")
 
             for _ in range(num_tries):
 
-##                with serial.Serial(args.port, args.baud, timeout=args.timeout) as ser:
+                bl_failed = False
 
-                t_su = 0.15             # startup time for Artemis bootloader   (experimentally determined - 0.095 sec min delay)
+                # Open the serial port
+                #self.addMessage("Opening " + str(self.port) + " at " + str(self.baudRate) + " Baud")
+                with serial.Serial(self.port, self.baudRate, timeout=0.5) as self.ser:
 
-                time.sleep(t_su)        # Allow Artemis to come out of reset
-                self.phase_setup()      # Perform baud rate negotiation
+                    t_su = 0.15             # startup time for Artemis bootloader   (experimentally determined - 0.095 sec min delay)
 
-                bl_failed = self.phase_bootload()     # Bootload
+                    time.sleep(t_su)        # Allow Artemis to come out of reset
+                    self.phase_setup()      # Perform baud rate negotiation
+
+                    bl_failed = self.phase_bootload()     # Bootload
 
                 if( bl_failed == False ):
                     break
 
         except:
-            self.addMessage("Could not communicate on " + self.port)
+            self.addMessage("Could not communicate with board!\n")
 
         try:
-            if self.ser.isOpen():
-                self.addMessage("Closing " + self.port)
-                self.ser.close()
+            self.ser.close()
         except:
             pass
             
