@@ -15,7 +15,7 @@ MIT license
 
 Pyinstaller:
 
-pyinstaller --onefile --icon=artemis_firmware_uploader_gui.ico --add-binary=artemis_svl.bin --add-binary=Artemis-Logo-Rounded.png artemis_firmware_uploader_gui.py 
+pyinstaller --onefile --icon=artemis_firmware_uploader_gui.ico --add-binary=artemis_svl.bin --add-binary=Artemis-Logo-Rounded.png artemis_firmware_uploader_gui.py
 
 TODO:
 
@@ -27,27 +27,27 @@ ambiq_bin2board.exe --bin "artemis_svl.bin" --load-address-blob 0x20000 --magic-
 """
 
 # Immediately upon reset the Artemis module will search for the timing character
-#   to auto-detect the baud rate. If a valid baud rate is found the Artemis will 
+#   to auto-detect the baud rate. If a valid baud rate is found the Artemis will
 #   respond with the bootloader version packet
 # If the computer receives a well-formatted version number packet at the desired
-#   baud rate it will send a command to begin bootloading. The Artemis shall then 
-#   respond with the a command asking for the next frame. 
-# The host will then send a frame packet. If the CRC is OK the Artemis will write 
+#   baud rate it will send a command to begin bootloading. The Artemis shall then
+#   respond with the a command asking for the next frame.
+# The host will then send a frame packet. If the CRC is OK the Artemis will write
 #   that to memory and request the next frame. If the CRC fails the Artemis will
 #   discard that data and send a request to re-send the previous frame.
 # This cycle repeats until the Artemis receives a done command in place of the
 #   requested frame data command.
-# The initial baud rate determination must occur within some small timeout. Once 
-#   baud rate detection has completed all additional communication will have a 
+# The initial baud rate determination must occur within some small timeout. Once
+#   baud rate detection has completed all additional communication will have a
 #   universal timeout value. Once the Artemis has begun requesting data it may no
-#   no longer exit the bootloader. If the host detects a timeout at any point it 
-#   will stop bootloading. 
+#   no longer exit the bootloader. If the host detects a timeout at any point it
+#   will stop bootloading.
 
 # Notes about PySerial timeout:
-# The timeout operates on whole functions - that is to say that a call to 
-#   ser.read(10) will return after ser.timeout, just as will ser.read(1) (assuming 
+# The timeout operates on whole functions - that is to say that a call to
+#   ser.read(10) will return after ser.timeout, just as will ser.read(1) (assuming
 #   that the necessary bytes were not found)
-# If there are no incoming bytes (on the line or in the buffer) then two calls to 
+# If there are no incoming bytes (on the line or in the buffer) then two calls to
 #   ser.read(n) will time out after 2*ser.timeout
 # Incoming UART data is buffered behind the scenes, probably by the OS.
 
@@ -68,7 +68,7 @@ import time
 import math
 import os
 import serial
-from Crypto.Cipher import AES
+from Crypto.Cipher import AES # pip install pycryptodome
 import array
 import hashlib
 import hmac
@@ -162,12 +162,12 @@ class RemoteWidget(QWidget):
         self.loadSuccess = False
         self.blob2wiredfile = ''
         self.uploadbinfile = ''
-        self.appFile = "artemis_svl.bin" # --bin
-        self.load_address_blob = 0x20000 # --load-address-blob
+        self.appFile = 'artemis_svl.bin' # --bin
+        self.load_address_blob = 0xC000 # --load-address-wired dest=loadaddress_blob default=0x60000
         # Output filename (without the extension) [also used for intermediate filenames]
         self.output_file = 'application' # -o
         self.version = 0x0 # --version
-        self.load_address_wired = 0xC000 # --load-address-wired (AM_SECBOOT_DEFAULT_NONSECURE_MAIN)
+        self.load_address_image = 0x20000 # --load-address-blob dest=loadaddress_image default=AM_SECBOOT_DEFAULT_NONSECURE_MAIN=0xC000
         # Options (16b hex value) - bit0 instructs to perform OTA of the image after wired download
         # (set to 0 if only downloading & skipping OTA flow)'
         self.options = 0x1 # --options
@@ -203,11 +203,11 @@ class RemoteWidget(QWidget):
         self.authkey = 8 # Authentication Key Idx (minHmacKeyIdx from keys_info.py)
         self.kek = 8 # KEK index (minAesKeyIdx from keys_info.py)
         self.erasePrev = 0 # (0,1)
-        self.child0 = hex(0xFFFFFFFF) # child (blobPtr#0 for Main / feature key for AM3P)
-        self.child1 = hex(0xFFFFFFFF) # child (blobPtr#1 for Main)
+        self.child0 = 0xFFFFFFFF # child (blobPtr#0 for Main / feature key for AM3P)
+        self.child1 = 0xFFFFFFFF # child (blobPtr#1 for Main)
         self.authalgo = 0 # (0, AM_SECBOOT_AUTH_ALGO_MAX+1)
         self.encalgo = 0 # (0, AM_SECBOOT_ENC_ALGO_MAX+1)
-        self.split = hex(0x48000) # MAX_DOWNLOAD_SIZE from am_defines.py
+        self.split = 0x48000 # MAX_DOWNLOAD_SIZE from am_defines.py
         self.abort = 1 # Should it send abort command? (0 = abort, 1 = abort and quit, -1 = no abort)
         self.otadesc = 0xFE000 # OTA Descriptor Page address (hex) - (Default is 0xFE000 - at the end of main flash)
 
@@ -221,6 +221,18 @@ class RemoteWidget(QWidget):
         self.AM_SECBOOT_WIRED_MSGTYPE_RESET          = 6
         self.AM_SECBOOT_WIRED_MSGTYPE_ACK            = 7
         self.AM_SECBOOT_WIRED_MSGTYPE_DATA           = 8
+        self.AM_SECBOOT_WIRED_ACK_STATUS_SUCCESS              = 0
+        self.AM_SECBOOT_WIRED_ACK_STATUS_FAILURE              = 1
+        self.AM_SECBOOT_WIRED_ACK_STATUS_INVALID_INFO0        = 2
+        self.AM_SECBOOT_WIRED_ACK_STATUS_CRC                  = 3
+        self.AM_SECBOOT_WIRED_ACK_STATUS_SEC                  = 4
+        self.AM_SECBOOT_WIRED_ACK_STATUS_MSG_TOO_BIG          = 5
+        self.AM_SECBOOT_WIRED_ACK_STATUS_UNKNOWN_MSGTYPE      = 6
+        self.AM_SECBOOT_WIRED_ACK_STATUS_INVALID_ADDR         = 7
+        self.AM_SECBOOT_WIRED_ACK_STATUS_INVALID_OPERATION    = 8
+        self.AM_SECBOOT_WIRED_ACK_STATUS_INVALID_PARAM        = 9
+        self.AM_SECBOOT_WIRED_ACK_STATUS_SEQ                  = 10
+        self.AM_SECBOOT_WIRED_ACK_STATUS_TOO_MUCH_DATA        = 11
         self.FLASH_PAGE_SIZE             = 0x2000                # 8K
         self.MAX_DOWNLOAD_SIZE           = 0x48000               # 288K
         self.AM_HMAC_SIG_SIZE                = 32
@@ -246,7 +258,7 @@ class RemoteWidget(QWidget):
         self.AM_SECBOOT_AESCBC_BLOCK_SIZE_WORDS  = 4
         self.AM_SECBOOT_AESCBC_BLOCK_SIZE_BYTES  = 4*self.AM_SECBOOT_AESCBC_BLOCK_SIZE_WORDS
         self.AM_IMAGEHDR_SIZE_MAIN           = 256
-        self.AM_IMAGEHDR_SIZE_AUX            = (112 + AM_KEK_SIZE)
+        self.AM_IMAGEHDR_SIZE_AUX            = (112 + self.AM_KEK_SIZE)
         self.AM_IMAGEHDR_OFFSET_CRC          = 4
         self.AM_IMAGEHDR_OFFSET_SIG          = 16
         self.AM_IMAGEHDR_OFFSET_IV           = 48
@@ -262,14 +274,34 @@ class RemoteWidget(QWidget):
         self.INFO_SIZE_BYTES                 = (8 * 1024)
         self.INFO_MAX_AUTH_KEY_WORDS         = 32
         self.INFO_MAX_ENC_KEY_WORDS          = 32
+        self.ivVal0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
         #from keys_info.py
         self.minAesKeyIdx = 8
         self.maxAesKeyIdx = 15
         self.minHmacKeyIdx = 8
-        self.maxHmacKeyIdx = 15        
+        self.maxHmacKeyIdx = 15
         self.INFO_KEY                    = 0xd894e09e
         self.FLASH_KEY                   = 0x12344321
+        ###### Following are just dummy keys - Should be substituted with real keys #######
+        self.keyTblHmac = [
+                # Info0 Keys - Starting at index 8
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55,
+                0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE,
+            ]
+        self.keyTblAes = [
+                # Info0 Keys - Starting at index 8
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+                0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+                0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5, 0xA5,
+                0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66,
+                0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE,
+            ]
 
         # ///// END of code taken from ambiq_bin2board.py
 
@@ -566,7 +598,7 @@ class RemoteWidget(QWidget):
         if(len(payload) != packet['len']):
             #self.addMessage("\tincorrect payload length")
             return packet
-        
+
         packet['timeout'] = 0                           # all bytes received, so timeout is not true
         packet['cmd'] = payload[0]                      # cmd is the first byte of the payload
         packet['data'] = payload[1:packet['len']-2]     # the data is the part of the payload that is not cmd or crc
@@ -577,7 +609,7 @@ class RemoteWidget(QWidget):
 
     def send_packet(self, cmd, data) -> None:
         """Send a packet"""
-        
+
         data = bytearray(data)
         num_bytes = 3 + len(data)
         #self.addMessage("\tsending packet length " + str(num_bytes))
@@ -598,7 +630,7 @@ class RemoteWidget(QWidget):
         baud_detect_byte = b'U'
 
         self.addMessage("Phase:\tSetup")
-        
+
         self.ser.reset_input_buffer()                        # Handle the serial startup blip
         self.addMessage("\tCleared startup blip")
 
@@ -613,7 +645,7 @@ class RemoteWidget(QWidget):
         if(packet['crc']):
             #self.addMessage("\twait_for_packet crc error")
             return
-        
+
         self.addMessage("\tGot SVL Bootloader Version: " + str(int.from_bytes(packet['data'], 'big')))
         self.addMessage("\tSending \'enter bootloader\' command")
 
@@ -648,7 +680,7 @@ class RemoteWidget(QWidget):
             bl_done = False
             bl_failed = False
             while((not bl_done) and (not bl_failed)):
-                    
+
                 packet = self.wait_for_packet()               # wait for indication by Artemis
 
                 if(packet['timeout'] or packet['crc']):
@@ -724,9 +756,108 @@ class RemoteWidget(QWidget):
             self.ser.close()
         except:
             pass
-            
+
 
     # ///// END of code taken from artemis_svl.py
+
+    # ///// START of code taken from am_defines.py
+
+    def crc32(self, L):
+        """CRC using ethernet poly, as used by Corvette hardware for validation"""
+        return (binascii.crc32(L) & 0xFFFFFFFF)
+
+    def pad_to_block_size(self, text, block_size, bZeroPad):
+        """Pad the text to the block_size."""
+        text_length = len(text)
+        amount_to_pad = block_size - (text_length % block_size)
+        if (amount_to_pad == block_size):
+            if (bZeroPad == 0):
+                amount_to_pad = 0
+        for i in range(0, amount_to_pad, 1):
+            text += bytes(chr(amount_to_pad), 'ascii')
+        return text
+
+
+    def encrypt_app_aes(self, cleartext, encKey, iv):
+        """AES CBC encryption"""
+        key = array.array('B', encKey).tostring()
+        ivVal = array.array('B', iv).tostring()
+        plaintext = array.array('B', cleartext).tostring()
+
+        encryption_suite = AES.new(key, AES.MODE_CBC, ivVal)
+        cipher_text = encryption_suite.encrypt(plaintext)
+        
+        return cipher_text
+
+
+    def encrypt_app_aes128(self, cleartext, encKey, iv):
+        """AES 128 CBC encryption"""
+        key = array.array('B', encKey).tostring()
+        ivVal = array.array('B', iv).tostring()
+        plaintext = array.array('B', cleartext).tostring()
+
+        encryption_suite = AES.new(key, AES.MODE_CBC, ivVal)
+        cipher_text = encryption_suite.encrypt(plaintext)
+        
+        return cipher_text
+
+    
+    def compute_hmac(self, key, data):
+        """SHA256 HMAC"""
+        sig = hmac.new(array.array('B', key).tostring(), array.array('B', data).tostring(), hashlib.sha256).digest()
+        return sig
+
+
+    def compute_rsa_sign(self, prvKeyFile, data):
+        """RSA PKCS1_v1_5 sign"""
+        key = open(prvKeyFile, "r").read() 
+        rsakey = RSA.importKey(key) 
+        signer = PKCS1_v1_5.new(rsakey) 
+        digest = SHA256.new() 
+        digest.update(bytes(data)) 
+        sign = signer.sign(digest) 
+        return sign
+
+
+    def verify_rsa_sign(self, pubKeyFile, data, sign):
+        """RSA PKCS1_v1_5 sign verification"""
+        key = open(pubKeyFile, "r").read() 
+        rsakey = RSA.importKey(key) 
+        #print(hex(rsakey.n))
+        verifier = PKCS1_v1_5.new(rsakey)
+        digest = SHA256.new() 
+        digest.update(bytes(data)) 
+        return verifier.verify(digest, sign)
+
+
+    def fill_word(self, barray, offset, w):
+        """Fill one word in bytearray"""
+        barray[offset + 0]  = (w >>  0) & 0x000000ff;
+        barray[offset + 1]  = (w >>  8) & 0x000000ff;
+        barray[offset + 2]  = (w >> 16) & 0x000000ff;
+        barray[offset + 3]  = (w >> 24) & 0x000000ff;
+
+
+    def int_to_bytes(self, n) -> bytes:
+        """Turn a 32-bit number into a series of bytes for transmission."""
+        A = [n & 0xFF,
+             (n >> 8) & 0xFF,
+             (n >> 16) & 0xFF,
+             (n >> 24) & 0xFF]
+
+        return A
+
+
+    def word_from_bytes(self, B, n):
+        """Extract a word from a byte array"""
+        return (B[n] + (B[n + 1] << 8) + (B[n + 2] << 16) + (B[n + 3] << 24))
+
+
+    def auto_int(self, x) -> int:
+        """automatically figure out the integer format (base 10 or 16)"""
+        return int(x, 0)
+
+    # ///// END of code taken from am_defines.py
 
     # ///// START of code taken from ambiq_bin2board.py
 
@@ -735,9 +866,11 @@ class RemoteWidget(QWidget):
 #     bin2blob_process(args.loadaddress_blob, args.appFile, args.magic_num, args.crcI, args.crcB, args.authI, args.authB, args.protection, args.authkey, args.output, args.kek, args.version, args.erasePrev, args.child0, args.child1, args.authalgo, args.encalgo)
         """Generate the image blob as per command line parameters"""
 
+        loadaddress = self.load_address_blob
+
         app_binarray = bytearray()
         # Open the file, and read it into an array of integers.
-        with resource_path(self.appFile) as f_app:
+        with open(resource_path(self.appFile),'rb') as f_app:
             app_binarray.extend(f_app.read())
             f_app.close()
 
@@ -747,18 +880,18 @@ class RemoteWidget(QWidget):
         if (self.encalgo != 0):
             encVal = 1
             if ((encKeyIdx < self.minAesKeyIdx) or (encKeyIdx > self.maxAesKeyIdx)):
-                self.addMessage("Invalid encKey Idx " +str(encKeyIdx))
+                self.addMessage("Invalid encKey Idx " + str(encKeyIdx))
                 return
-            if (encalgo == 2):
+            if (self.encalgo == 2):
                 if (encKeyIdx & 0x1):
-                    self.addMessage("Invalid encKey Idx " +str(encKeyIdx))
+                    self.addMessage("Invalid encKey Idx " + str(encKeyIdx))
                     return
                 keySize = 32
             else:
                 keySize = 16
 
         authKeyIdx = self.authkey
-                
+
         if (self.authalgo != 0):
             if ((authKeyIdx < self.minHmacKeyIdx) or (authKeyIdx > self.maxHmacKeyIdx) or (authKeyIdx & 0x1)):
                 self.addMessage("Invalid authKey Idx " + str(authKeyIdx))
@@ -779,26 +912,26 @@ class RemoteWidget(QWidget):
         orig_app_length  = (len(app_binarray))
         self.addMessage("original app_size " + str(orig_app_length))
 
-        self.addMessage("load_address " + str(self.load_address_blob))
-        if (self.load_address_blob & 0x3):
+        self.addMessage("load_address " + str(hex(loadaddress)))
+        if (loadaddress & 0x3):
             self.addMessage("load address needs to be word aligned")
             return
 
-        if (magicNum == self.AM_IMAGE_MAGIC_INFO0):
+        if (self.magic_num == self.AM_IMAGE_MAGIC_INFO0):
             if (orig_app_length & 0x3):
                 self.addMessage("INFO0 blob length needs to be multiple of 4")
                 return
-            if ((self.load_address_blob + orig_app_length) > self.INFO_SIZE_BYTES):
+            if ((loadaddress + orig_app_length) > self.INFO_SIZE_BYTES):
                 self.addMessage("INFO0 Offset and length exceed size")
                 return
 
         if (encVal == 1):
             block_size = self.AM_SECBOOT_AESCBC_BLOCK_SIZE_BYTES
-            app_binarray = pad_to_block_size(app_binarray, block_size, 1)
+            app_binarray = self.pad_to_block_size(app_binarray, block_size, 1)
         else:
             # Add Padding
-            app_binarray = pad_to_block_size(app_binarray, 4, 0)
-        
+            app_binarray = self.pad_to_block_size(app_binarray, 4, 0)
+
         app_length  = (len(app_binarray))
         self.addMessage("app_size " + str(app_length))
 
@@ -809,15 +942,15 @@ class RemoteWidget(QWidget):
         w0 = (self.magic_num << 24) | ((encVal & 0x1) << 23) | blobLen
 
         self.addMessage("w0 =" + str(hex(w0)))
-        fill_word(hdr_binarray, 0, w0)
-            
+        self.fill_word(hdr_binarray, 0, w0)
+
         # w2
         securityVal = ((self.authI << 1) | self.crcI) << 4 | (self.authB << 1) | self.crcB
         self.addMessage("Security Value " + str(hex(securityVal)))
         w2 = ((securityVal << 24) & 0xff000000) | ((self.authalgo) & 0xf) | ((authKeyIdx << 4) & 0xf0) | ((self.encalgo << 8) & 0xf00) | ((encKeyIdx << 12) & 0xf000)
-        fill_word(hdr_binarray, 8, w2)
+        self.fill_word(hdr_binarray, 8, w2)
         self.addMessage("w2 = " + str(hex(w2)))
-        
+
 
         if (self.magic_num == self.AM_IMAGE_MAGIC_INFO0):
             # Insert the INFO0 size and offset
@@ -825,21 +958,21 @@ class RemoteWidget(QWidget):
             versionKeyWord = self.INFO_KEY
         else:
             # Insert the application binary load address.
-            addrWord = loadaddress | (protection & 0x3)
+            addrWord = loadaddress | (self.protection & 0x3)
             # Initialize versionKeyWord
-            versionKeyWord = (version & 0x7FFF) | ((erasePrev & 0x1) << 15)
+            versionKeyWord = (self.version & 0x7FFF) | ((self.erasePrev & 0x1) << 15)
 
         self.addMessage("addrWord = " + str(hex(addrWord)))
-        fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_ADDR, addrWord)
+        self.fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_ADDR, addrWord)
 
         self.addMessage("versionKeyWord = " + str(hex(versionKeyWord)))
-        fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_VERKEY, versionKeyWord)
+        self.fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_VERKEY, versionKeyWord)
 
         # Initialize child (Child Ptr/ Feature key)
-        self.addMessage("child0/feature = " + str(hex(self.child0)))
-        fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_CHILDPTR, self.child0)
-        self.addMessage("child1 = " + str(hex(self.child1)))
-        fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_CHILDPTR + 4, self.child1)
+        self.addMessage("child0/feature = " + str(self.child0))
+        self.fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_CHILDPTR, self.child0)
+        self.addMessage("child1 = " + str(self.child1))
+        self.fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_CHILDPTR + 4, self.child1)
 
         authKeyIdx = authKeyIdx - self.minHmacKeyIdx
         if (self.authB != 0): # Authentication needed
@@ -847,7 +980,7 @@ class RemoteWidget(QWidget):
     #        am_print("Key used for HMAC")
     #        am_print([hex(keyTblHmac[authKeyIdx*AM_SECBOOT_KEYIDX_BYTES + n]) for n in range (0, AM_HMAC_SIG_SIZE)])
             # Initialize the clear image HMAC
-            sigClr = compute_hmac(keyTblHmac[authKeyIdx*self.AM_SECBOOT_KEYIDX_BYTES:(authKeyIdx*self.AM_SECBOOT_KEYIDX_BYTES+self.AM_HMAC_SIG_SIZE)], (hdr_binarray[AM_IMAGEHDR_START_HMAC:hdr_length] + app_binarray))
+            sigClr = self.compute_hmac(self.keyTblHmac[authKeyIdx*self.AM_SECBOOT_KEYIDX_BYTES:(authKeyIdx*self.AM_SECBOOT_KEYIDX_BYTES+self.AM_HMAC_SIG_SIZE)], (hdr_binarray[self.AM_IMAGEHDR_START_HMAC:hdr_length] + app_binarray))
             self.addMessage("HMAC Clear")
             #am_print([hex(n) for n in sigClr])
             # Fill up the HMAC
@@ -866,11 +999,11 @@ class RemoteWidget(QWidget):
             #am_print([hex(keyAes[n]) for n in range (0, keySize)])
             # Encrypted Part
             self.addMessage("Encrypting blob of size " + str((hdr_length - self.AM_IMAGEHDR_START_ENCRYPT + app_length)))
-            enc_binarray = encrypt_app_aes((hdr_binarray[self.AM_IMAGEHDR_START_ENCRYPT:hdr_length] + app_binarray), keyAes, ivValAes)
+            enc_binarray = self.encrypt_app_aes((hdr_binarray[self.AM_IMAGEHDR_START_ENCRYPT:hdr_length] + app_binarray), keyAes, ivValAes)
     #        am_print("Key used for encrypting AES Key")
     #        am_print([hex(keyTblAes[encKeyIdx*keySize + n]) for n in range (0, keySize)])
             # Encrypted Key
-            enc_key = encrypt_app_aes(keyAes, keyTblAes[encKeyIdx*keySize:encKeyIdx*keySize + keySize], ivVal0)
+            enc_key = self.encrypt_app_aes(keyAes, self.keyTblAes[encKeyIdx*keySize:encKeyIdx*keySize + keySize], ivVal0)
             self.addMessage("Encrypted Key")
             #am_print([hex(enc_key[n]) for n in range (0, keySize)])
             # Fill up the IV
@@ -888,17 +1021,17 @@ class RemoteWidget(QWidget):
     #        am_print("Key used for HMAC")
     #        am_print([hex(keyTblHmac[authKeyIdx*AM_SECBOOT_KEYIDX_BYTES + n]) for n in range (0, AM_HMAC_SIG_SIZE)])
             # Initialize the top level HMAC
-            sig = compute_hmac(keyTblHmac[authKeyIdx*self.AM_SECBOOT_KEYIDX_BYTES:(authKeyIdx*self.AM_SECBOOT_KEYIDX_BYTES+self.AM_HMAC_SIG_SIZE)], (hdr_binarray[self.AM_IMAGEHDR_START_HMAC_INST:self.AM_IMAGEHDR_START_ENCRYPT] + enc_binarray))
+            sig = self.compute_hmac(self.keyTblHmac[authKeyIdx*self.AM_SECBOOT_KEYIDX_BYTES:(authKeyIdx*self.AM_SECBOOT_KEYIDX_BYTES+self.AM_HMAC_SIG_SIZE)], (hdr_binarray[self.AM_IMAGEHDR_START_HMAC_INST:self.AM_IMAGEHDR_START_ENCRYPT] + enc_binarray))
             self.addMessage("Generated Signature")
             #am_print([hex(n) for n in sig])
             # Fill up the HMAC
             for x in range(0, self.AM_HMAC_SIG_SIZE):
                 hdr_binarray[self.AM_IMAGEHDR_OFFSET_SIG + x]  = sig[x]
         # compute the CRC for the blob - this is done on a clear image
-        crc = crc32(hdr_binarray[self.AM_IMAGEHDR_START_CRC:hdr_length] + app_binarray)
+        crc = self.crc32(hdr_binarray[self.AM_IMAGEHDR_START_CRC:hdr_length] + app_binarray)
         self.addMessage("crc =  " + str(hex(crc)))
         w1 = crc
-        fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_CRC, w1)
+        self.fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_CRC, w1)
 
         # now output all three binary arrays in the proper order
         output = self.output_file + '_OTA_blob.bin'
@@ -914,6 +1047,8 @@ class RemoteWidget(QWidget):
 #     blob2wired_process( blob2wiredfile, args.imagetype, args.loadaddress_image, args.authalgo, args.encalgo, args.authkey, args.kek, args.options, args.split, args.output)
 
         """Generate the image blob as per command line parameters"""
+
+        loadaddress = self.load_address_image
 
         app_binarray = bytearray()
         # Open the file, and read it into an array of integers.
@@ -942,7 +1077,7 @@ class RemoteWidget(QWidget):
                 keySize = 16
 
         authKeyIdx = self.authkey
-                
+
         if (self.authalgo != 0):
             if ((authKeyIdx < self.minHmacKeyIdx) or (authKeyIdx > self.maxHmacKeyIdx) or (authKeyIdx & 0x1)):
                 self.addMessage("Invalid authKey Idx " + str(authKeyIdx))
@@ -955,15 +1090,15 @@ class RemoteWidget(QWidget):
 
         if (self.encalgo != 0):
             block_size = keySize
-            app_binarray = pad_to_block_size(app_binarray, block_size, 1)
+            app_binarray = self.pad_to_block_size(app_binarray, block_size, 1)
         else:
             # Add Padding
-            app_binarray = pad_to_block_size(app_binarray, 4, 0)
-        
+            app_binarray = self.pad_to_block_size(app_binarray, 4, 0)
+
         app_length  = (len(app_binarray))
         self.addMessage("app_size = " + str(app_length))
 
-        if (app_length + hdr_length > maxSize):
+        if (app_length + hdr_length > self.split):
             self.addMessage("Image size bigger than max - Creating Split image")
 
         start = 0
@@ -976,35 +1111,35 @@ class RemoteWidget(QWidget):
             #generate mutable byte array for the header
             hdr_binarray = bytearray([0x00]*hdr_length);
 
-            if (app_length - start > maxSize):
-                end = start + maxSize
+            if (app_length - start > self.split):
+                end = start + self.split
             else:
                 end = app_length
 
-            if (imagetype == self.AM_SECBOOT_WIRED_IMAGETYPE_INFO0_NOOTA):
+            if (self.image_type == self.AM_SECBOOT_WIRED_IMAGETYPE_INFO0_NOOTA):
                 key = self.INFO_KEY
                 # word offset
-                fill_word(hdr_binarray, self.AM_WU_IMAGEHDR_OFFSET_ADDR, loadaddress>>2)
+                self.fill_word(hdr_binarray, self.AM_WU_IMAGEHDR_OFFSET_ADDR, loadaddress>>2)
             else:
                 key = self.FLASH_KEY
                 # load address
-                fill_word(hdr_binarray, self.AM_WU_IMAGEHDR_OFFSET_ADDR, loadaddress)
+                self.fill_word(hdr_binarray, self.AM_WU_IMAGEHDR_OFFSET_ADDR, loadaddress)
             # Create imageType & options
-            hdr_binarray[self.AM_WU_IMAGEHDR_OFFSET_IMAGETYPE] = imagetype
+            hdr_binarray[self.AM_WU_IMAGEHDR_OFFSET_IMAGETYPE] = self.image_type
             # Set the options only for the first block
             if (start == 0):
-                hdr_binarray[self.AM_WU_IMAGEHDR_OFFSET_OPTIONS] = optionsVal
+                hdr_binarray[self.AM_WU_IMAGEHDR_OFFSET_OPTIONS] = self.options
             else:
                 hdr_binarray[self.AM_WU_IMAGEHDR_OFFSET_OPTIONS] = 0
 
             # Create Info0 Update Blob for wired update
-            fill_word(hdr_binarray, self.AM_WU_IMAGEHDR_OFFSET_KEY, key)
+            self.fill_word(hdr_binarray, self.AM_WU_IMAGEHDR_OFFSET_KEY, key)
             # update size
-            fill_word(hdr_binarray, self.AM_WU_IMAGEHDR_OFFSET_SIZE, end-start)
+            self.fill_word(hdr_binarray, self.AM_WU_IMAGEHDR_OFFSET_SIZE, end-start)
 
             w0 = ((self.authalgo & 0xf) | ((authKeyIdx << 8) & 0xf00) | ((self.encalgo << 16) & 0xf0000) | ((encKeyIdx << 24) & 0x0f000000))
 
-            fill_word(hdr_binarray, 0, w0)
+            self.fill_word(hdr_binarray, 0, w0)
 
             if (self.encalgo != 0):
                 keyIdx = encKeyIdx - self.minAesKeyIdx
@@ -1015,11 +1150,11 @@ class RemoteWidget(QWidget):
                 self.addMessage("AES Key used for encryption")
                 #am_print([hex(keyAes[n]) for n in range (0, keySize)])
                 # Encrypted Part - after security header
-                enc_binarray = encrypt_app_aes((hdr_binarray[self.AM_WU_IMAGEHDR_START_ENCRYPT:hdr_length] + app_binarray[start:end]), keyAes, ivValAes)
+                enc_binarray = self.encrypt_app_aes((hdr_binarray[self.AM_WU_IMAGEHDR_START_ENCRYPT:hdr_length] + app_binarray[start:end]), keyAes, ivValAes)
     #            am_print("Key used for encrypting AES Key")
     #            am_print([hex(keyTblAes[keyIdx*AM_SECBOOT_KEYIDX_BYTES + n]) for n in range (0, keySize)])
                 # Encrypted Key
-                enc_key = encrypt_app_aes(keyAes, keyTblAes[keyIdx*self.AM_SECBOOT_KEYIDX_BYTES:(keyIdx*self.AM_SECBOOT_KEYIDX_BYTES + keySize)], ivVal0)
+                enc_key = self.encrypt_app_aes(keyAes, self.keyTblAes[keyIdx*self.AM_SECBOOT_KEYIDX_BYTES:(keyIdx*self.AM_SECBOOT_KEYIDX_BYTES + keySize)], ivVal0)
                 self.addMessage("Encrypted Key")
                 #am_print([hex(enc_key[n]) for n in range (0, keySize)])
                 # Fill up the IV
@@ -1037,7 +1172,7 @@ class RemoteWidget(QWidget):
     #            am_print("Key used for HMAC")
     #            am_print([hex(keyTblHmac[keyIdx*AM_SECBOOT_KEYIDX_BYTES + n]) for n in range (0, AM_HMAC_SIG_SIZE)])
                 # Initialize the HMAC - Sign is computed on image following the signature
-                sig = compute_hmac(keyTblHmac[keyIdx*self.AM_SECBOOT_KEYIDX_BYTES:(keyIdx*self.AM_SECBOOT_KEYIDX_BYTES+self.AM_HMAC_SIG_SIZE)], hdr_binarray[self.AM_WU_IMAGEHDR_START_HMAC:self.AM_WU_IMAGEHDR_START_ENCRYPT] + enc_binarray)
+                sig = self.compute_hmac(self.keyTblHmac[keyIdx*self.AM_SECBOOT_KEYIDX_BYTES:(keyIdx*self.AM_SECBOOT_KEYIDX_BYTES+self.AM_HMAC_SIG_SIZE)], hdr_binarray[self.AM_WU_IMAGEHDR_START_HMAC:self.AM_WU_IMAGEHDR_START_ENCRYPT] + enc_binarray)
                 self.addMessage("HMAC")
                 #am_print([hex(n) for n in sig])
                 # Fill up the HMAC
@@ -1045,13 +1180,13 @@ class RemoteWidget(QWidget):
                     hdr_binarray[self.AM_WU_IMAGEHDR_OFFSET_SIG + x]  = sig[x]
 
             self.addMessage("Writing to file " + str(output))
-            self.addMessage("Image from " + str(hex(start)) + " to " + str(hex(end)) + " will be loaded at" + str(hex(loadaddress))) 
+            self.addMessage("Image from " + str(hex(start)) + " to " + str(hex(end)) + " will be loaded at" + str(hex(loadaddress)))
             out.write(hdr_binarray[0:self.AM_WU_IMAGEHDR_START_ENCRYPT])
             out.write(enc_binarray)
 
             # Reset start for next chunk
             start = end
-            loadaddress = loadaddress + maxSize
+            loadaddress = loadaddress + self.split
 
 
     def updater(self) -> None:
@@ -1072,7 +1207,7 @@ class RemoteWidget(QWidget):
         self.addMessage("Connecting over serial port...")
 
         #Check to see if the com port is available
-        try: 
+        try:
             with serial.Serial(self.port, self.baudRate, timeout=connection_timeout) as self.ser:
                 pass
         except:
@@ -1085,7 +1220,7 @@ class RemoteWidget(QWidget):
         #fails to correctly catch the BOOT signal about 1 out of ten times.
         #Auto-retry this number of times before we give up.
 
-        while self.loadTries < 3: 
+        while self.loadTries < 3:
             self.loadSuccess = False
 
             with serial.Serial(self.port, self.baudRate, timeout=connection_timeout) as self.ser:
@@ -1103,18 +1238,18 @@ class RemoteWidget(QWidget):
 
                 self.ser.reset_input_buffer()    # reset the input bufer to discard any UART traffic that the device may have generated
 
-                self.connect_device(ser)
+                self.connect_device()
 
                 if(self.loadSuccess == True):
-                    self.addMessage("Tries = ", self.loadTries)
+                    self.addMessage("Tries = " + str(self.loadTries))
                     self.addMessage("Upload complete!")
                     return
                 else:
                     self.addMessage("Fail")
-                
+
                 self.loadTries = self.loadTries + 1
-                
-        self.addMessage("Tries = ", self.loadTries)
+
+        self.addMessage("Tries = " + str(self.loadTries))
         self.addMessage("Upload failed!")
         return
 
@@ -1125,7 +1260,7 @@ class RemoteWidget(QWidget):
         # Send Hello
         #generate mutable byte array for the header
         hello = bytearray([0x00]*4)
-        fill_word(hello, 0, ((8 << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_HELLO))
+        self.fill_word(hello, 0, ((8 << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_HELLO))
         self.addMessage("Sending Hello.")
         response, success = self.send_command(hello, 88)
 
@@ -1135,45 +1270,45 @@ class RemoteWidget(QWidget):
             return
 
         self.addMessage("Received response for Hello")
-        word = word_from_bytes(response, 4)
+        word = self.word_from_bytes(response, 4)
         if ((word & 0xFFFF) == self.AM_SECBOOT_WIRED_MSGTYPE_STATUS):
             # Received Status
             print("Bootloader connected")
 
             self.addMessage("Received Status")
-            self.addMessage("length = ", hex((word >> 16)))
-            self.addMessage("version = ", hex(word_from_bytes(response, 8)))
-            self.addMessage("Max Storage = ", hex(word_from_bytes(response, 12)))
-            self.addMessage("Status = ", hex(word_from_bytes(response, 16)))
-            self.addMessage("State = ", hex(word_from_bytes(response, 20)))
+            self.addMessage("length = " + str(hex((word >> 16))))
+            self.addMessage("version = " + str(hex(self.word_from_bytes(response, 8))))
+            self.addMessage("Max Storage = " + str(hex(self.word_from_bytes(response, 12))))
+            self.addMessage("Status = " + str(hex(self.word_from_bytes(response, 16))))
+            self.addMessage("State = " + str(hex(self.word_from_bytes(response, 20))))
 ##            verboseprint("AMInfo = ")
 ##            for x in range(24, 88, 4):
-##                verboseprint(hex(word_from_bytes(response, x)))
+##                verboseprint(hex(self.word_from_bytes(response, x)))
 
             if (self.abort != -1):
                 # Send OTA Desc
                 self.addMessage("Sending Abort command.")
                 abortMsg = bytearray([0x00]*8);
-                fill_word(abortMsg, 0, ((12 << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_ABORT))
-                fill_word(abortMsg, 4, abort)
+                self.fill_word(abortMsg, 0, ((12 << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_ABORT))
+                self.fill_word(abortMsg, 4, self.abort)
                 if self.send_ackd_command(abortMsg) == False:
                     self.addMessage("Failed to ack command")
                     return
 
-
-            if (self.otadescaddr != 0xFFFFFFFF):
+            otadescaddr = self.otadesc
+            if (otadescaddr != 0xFFFFFFFF):
                 # Send OTA Desc
-                self.addMessage("Sending OTA Descriptor = ", hex(otadescaddr))
+                self.addMessage("Sending OTA Descriptor = " + str(hex(otadescaddr)))
                 otaDesc = bytearray([0x00]*8);
-                fill_word(otaDesc, 0, ((12 << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_OTADESC))
-                fill_word(otaDesc, 4, otadescaddr)
+                self.fill_word(otaDesc, 0, ((12 << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_OTADESC))
+                self.fill_word(otaDesc, 4, otadescaddr)
                 response, success = self.send_ackd_command(otaDesc)
                 if success == False:
                     self.addMessage("Failed to ack command")
                     return
 
 
-            imageType = args.imagetype
+            imageType = self.image_type
             if (self.uploadbinfile != ''):
 
                 # Read the binary file from the command line.
@@ -1184,7 +1319,7 @@ class RemoteWidget(QWidget):
                 # Send Update command
                 self.addMessage("Sending Update Command.")
 
-                # It is assumed that maxSize is 256b multiple
+                # It is assumed that maxSize (self.split) is 256b multiple
                 maxImageSize = self.split
                 if ((maxImageSize & (self.FLASH_PAGE_SIZE - 1)) != 0):
                     self.addMessage("split needs to be multiple of flash page size")
@@ -1193,22 +1328,22 @@ class RemoteWidget(QWidget):
                 # Each Block of image consists of AM_WU_IMAGEHDR_SIZE Bytes Image header and the Image blob
                 maxUpdateSize = self.AM_WU_IMAGEHDR_SIZE + maxImageSize
                 numUpdates = (totalLen + maxUpdateSize - 1) // maxUpdateSize # Integer division
-                self.addMessage("number of updates needed = ", numUpdates)
+                self.addMessage("number of updates needed = " + str(numUpdates))
 
                 end = totalLen
                 for numUpdates in range(numUpdates, 0 , -1):
                     start = (numUpdates-1)*maxUpdateSize
                     crc = crc32(application[start:end])
                     applen = end - start
-                    self.addMessage("Sending block of size ", str(hex(applen)), " from ", str(hex(start)), " to ", str(hex(end)))
+                    self.addMessage("Sending block of size " + str(hex(applen)) + " from " + str(hex(start)) + " to " + str(hex(end)))
                     end = end - applen
 
                     update = bytearray([0x00]*16);
-                    fill_word(update, 0, ((20 << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_UPDATE))
-                    fill_word(update, 4, applen)
-                    fill_word(update, 8, crc)
+                    self.fill_word(update, 0, ((20 << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_UPDATE))
+                    self.fill_word(update, 4, applen)
+                    self.fill_word(update, 8, crc)
                     # Size = 0 => We're not piggybacking any data to IMAGE command
-                    fill_word(update, 12, 0)
+                    self.fill_word(update, 12, 0)
 
                     response, success = self.send_ackd_command(update)
                     if success == False:
@@ -1234,11 +1369,11 @@ class RemoteWidget(QWidget):
                         # Build a data packet with a "data command" a "length" and the actual
                         # payload bytes, and send it to the target.
                         dataMsg = bytearray([0x00]*8);
-                        fill_word(dataMsg, 0, (((chunklen + 12) << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_DATA))
+                        self.fill_word(dataMsg, 0, (((chunklen + 12) << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_DATA))
                         # seqNo
-                        fill_word(dataMsg, 4, x)
+                        self.fill_word(dataMsg, 4, x)
 
-                        self.addMessage("Sending Data Packet of length ", chunklen)
+                        self.addMessage("Sending Data Packet of length " + str(chunklen))
                         response, success = send_ackd_command(dataMsg + chunk)
                         if success == False:
                             self.addMessage("Failed to ack command")
@@ -1257,23 +1392,23 @@ class RemoteWidget(QWidget):
                 # Send reset
                 self.addMessage("Sending Reset Command.")
                 resetmsg = bytearray([0x00]*8);
-                fill_word(resetmsg, 0, ((12 << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_RESET))
+                self.fill_word(resetmsg, 0, ((12 << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_RESET))
                 # options
-                fill_word(resetmsg, 4, self.reset)
+                self.fill_word(resetmsg, 4, self.reset_after)
                 response, success = self.send_ackd_command(resetmsg)
                 if success == False:
                     self.addMessage("Failed to ack command")
                     return
 
-            
+
             #Success! We're all done
             self.loadSuccess = True
         else:
             # Received Wrong message
             self.addMessage("Received Unknown Message")
-            word = word_from_bytes(response, 4)
-            self.addMessage("msgType = ", hex(word & 0xFFFF))
-            self.addMessage("Length = ", hex(word >> 16))
+            word = self.word_from_bytes(response, 4)
+            self.addMessage("msgType = " + str(hex(word & 0xFFFF)))
+            self.addMessage("Length = " + str(hex(word >> 16)))
 
     def send_ackd_command(self, command) -> (bytes, bool):
         """Send ACK'd command. Sends a command, and waits for an ACK."""
@@ -1285,14 +1420,14 @@ class RemoteWidget(QWidget):
             self.addMessage("Response not valid")
             return (b'',False) #Return error
 
-        word = word_from_bytes(response, 4)
+        word = self.word_from_bytes(response, 4)
         if ((word & 0xFFFF) == self.AM_SECBOOT_WIRED_MSGTYPE_ACK):
             # Received ACK
-            if (word_from_bytes(response, 12) != self.AM_SECBOOT_WIRED_ACK_STATUS_SUCCESS):
+            if (self.word_from_bytes(response, 12) != self.AM_SECBOOT_WIRED_ACK_STATUS_SUCCESS):
                 self.addMessage("Received NACK")
-                self.addMessage("msgType = ", hex(word_from_bytes(response, 8)))
-                self.addMessage("error = ", hex(word_from_bytes(response, 12)))
-                self.addMessage("seqNo = ", hex(word_from_bytes(response, 16)))
+                self.addMessage("msgType = " + str(hex(self.word_from_bytes(response, 8))))
+                self.addMessage("error = " + str(hex(self.word_from_bytes(response, 12))))
+                self.addMessage("seqNo = " + str(hex(self.word_from_bytes(response, 16))))
                 self.addMessage("Upload failed: No ack to command")
 
                 return (b'',False) #Return error
@@ -1303,11 +1438,11 @@ class RemoteWidget(QWidget):
         """Send command. Sends a command, and waits for the response."""
 
         # Compute crc
-        crc = crc32(params)
+        crc = self.crc32(params)
     #    print([hex(n) for n in int_to_bytes(crc)])
     #    print([hex(n) for n in params])
         # send crc first
-        self.ser.write(int_to_bytes(crc))
+        self.ser.write(self.int_to_bytes(crc))
 
         # Next, send the parameters.
         self.ser.write(params)
@@ -1317,7 +1452,7 @@ class RemoteWidget(QWidget):
 
         # Make sure we got the number of bytes we asked for.
         if len(response) != response_len:
-            self.addMessage("No response for command 0x{:08X}".format(word_from_bytes(params, 0) & 0xFFFF))
+            self.addMessage("No response for command " + str(params))
             n = len(response)
             if (n != 0):
                 self.addMessage("received " + str(len(response)) + " bytes")
@@ -1327,9 +1462,9 @@ class RemoteWidget(QWidget):
 
     def send_bytewise_command(self, command, params, response_len) -> (bytes, bool):
         """Send a command that uses an array of bytes as its parameters."""
-        
+
         # Send the command first.
-        ser.write(int_to_bytes(command))
+        ser.write(self.int_to_bytes(command))
 
         # Next, send the parameters.
         ser.write(params)
@@ -1341,7 +1476,7 @@ class RemoteWidget(QWidget):
         if len(response) != response_len:
             self.addMessage("Upload failed: No reponse to command")
             return (b'',False)
-            
+
         return (response, True)
 
 ###******************************************************************************
@@ -1468,7 +1603,7 @@ class RemoteWidget(QWidget):
 ##
 ##    parser.add_argument('-ota', dest = 'otadesc', type=auto_int, default=0xFE000,
 ##                        help = 'upload: OTA Descriptor Page address (hex) - (Default is 0xFE000 - at the end of main flash) - enter 0xFFFFFFFF to instruct SBL to skip OTA')
-##    
+##
 ##    parser.add_argument('--options', dest = 'options', type=auto_int, default=0x1,
 ##                        help = 'blob2wired: Options (16b hex value) - bit0 instructs to perform OTA of the image after wired download (set to 0 if only downloading & skipping OTA flow)')
 ##
@@ -1500,15 +1635,11 @@ class RemoteWidget(QWidget):
 ##    return args
 
 
-    def update_main():
+    def update_main(self) -> None:
         """Updater main function"""
-        self.blob2wiredfile # Global
 
         self.bin2blob_process()
         self.blob2wired_process()
-
-        # todo: link the bin2blob step with the blob2wired step by input/output files
-
         self.updater()
 
 
