@@ -14,15 +14,20 @@ https://github.com/sria91/SerialTerminal
 MIT license
 
 Pyinstaller:
+Windows:
+pyinstaller --onefile --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin;." --add-data="Artemis-Logo-Rounded.png;." artemis_firmware_uploader_gui.py
+Linux:
+pyinstaller --onefile --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin:." --add-data="Artemis-Logo-Rounded.png:." artemis_firmware_uploader_gui.py
 
-pyinstaller --onefile --icon=artemis_firmware_uploader_gui.ico --add-binary=artemis_svl.bin --add-binary=Artemis-Logo-Rounded.png artemis_firmware_uploader_gui.py
+Pyinstaller needs:
+artemis_firmware_uploader_gui.py (this file!)
+artemis_firmware_uploader_gui.ico (icon file for the .exe)
+Artemis-Logo-Rounded.png (icon for the GUI widget)
+artemis_svl.bin (the bootloader binary)
 
 TODO:
 
 Push user to upgrade bootloader as needed
-
-Bootloader from CLI:
-ambiq_bin2board.exe --bin "artemis_svl.bin" --load-address-blob 0x20000 --magic-num 0xCB --version 0x0 --load-address-wired 0xC000 -i 6 --options 0x1 -b 115200 -port "COM3" -r 2 -v
 
 """
 
@@ -51,7 +56,7 @@ ambiq_bin2board.exe --bin "artemis_svl.bin" --load-address-blob 0x20000 --magic-
 #   ser.read(n) will time out after 2*ser.timeout
 # Incoming UART data is buffered behind the scenes, probably by the OS.
 
-# Information about the firmware updater (ambiq_bin2board.py):
+# Information about the firmware updater (taken from ambiq_bin2board.py):
 #   This script performs the three main tasks:
 #       1. Convert 'application.bin' to an OTA update blob
 #       2. Convert the OTA blob into a wired update blob
@@ -73,16 +78,13 @@ import array
 import hashlib
 import hmac
 import binascii
-#from am_defines import *
-#from keys_info import keyTblAes, keyTblHmac, minAesKeyIdx, maxAesKeyIdx, minHmacKeyIdx, maxHmacKeyIdx, INFO_KEY, FLASH_KEY
 
 # Setting constants
 SETTING_PORT_NAME = 'port_name'
 SETTING_FILE_LOCATION = 'message'
 SETTING_BAUD_RATE = '115200' # Default to 115200 for upload
 
-guiVersion = 'v1.0_integrated'
-
+guiVersion = 'v2.0'
 
 def gen_serial_ports() -> Iterator[Tuple[str, str, str]]:
     """Return all available serial ports."""
@@ -104,12 +106,10 @@ class RemoteWidget(QWidget):
         super().__init__(parent)
 
         # ///// START of code taken from artemis_svl.py
-
-        # ***********************************************************************************
-        #
+        
+        # Really these should not be self.'globals'. It might be best to put them back into a separate file?
+        
         # Commands
-        #
-        # ***********************************************************************************
         self.SVL_CMD_VER     = 0x01  # version
         self.SVL_CMD_BL      = 0x02  # enter bootload mode
         self.SVL_CMD_NEXT    = 0x03  # request next chunk
@@ -117,7 +117,7 @@ class RemoteWidget(QWidget):
         self.SVL_CMD_RETRY   = 0x05  # request re-send frame
         self.SVL_CMD_DONE    = 0x06  # finished - all data sent
 
-        self.barWidthInCharacters = 50  # Width of progress bar, ie [###### % complete
+        self.barWidthInCharacters = 50  # Width of progress bar, ie [###### % complete (NOT USED)
 
         self.crcTable = (
             0x0000, 0x8005, 0x800F, 0x000A, 0x801B, 0x001E, 0x0014, 0x8011,
@@ -162,6 +162,9 @@ class RemoteWidget(QWidget):
         self.loadSuccess = False
         self.blob2wiredfile = ''
         self.uploadbinfile = ''
+
+        # ARGS - these replace the actual args
+        # Maybe these should be in a JSON file?
         self.appFile = 'artemis_svl.bin' # --bin
         self.load_address_blob = 0xC000 # --load-address-wired dest=loadaddress_blob default=0x60000
         # Output filename (without the extension) [also used for intermediate filenames]
@@ -173,28 +176,8 @@ class RemoteWidget(QWidget):
         self.options = 0x1 # --options
         # Should it send reset command after image download? (0 = no reset, 1 = POI, 2 = POR)
         self.reset_after = 2 # -r
-
-        # Possible image types from am_defines.py
-        self.AM_SECBOOT_WIRED_IMAGETYPE_SBL                  = 0
-        self.AM_SECBOOT_WIRED_IMAGETYPE_AM3P                 = 1
-        self.AM_SECBOOT_WIRED_IMAGETYPE_PATCH                = 2
-        self.AM_SECBOOT_WIRED_IMAGETYPE_MAIN                 = 3
-        self.AM_SECBOOT_WIRED_IMAGETYPE_CHILD                = 4
-        self.AM_SECBOOT_WIRED_IMAGETYPE_CUSTPATCH            = 5
-        self.AM_SECBOOT_WIRED_IMAGETYPE_NONSECURE            = 6
-        self.AM_SECBOOT_WIRED_IMAGETYPE_INFO0                = 7
-        self.AM_SECBOOT_WIRED_IMAGETYPE_INFO0_NOOTA          = 32
-        self.AM_SECBOOT_WIRED_IMAGETYPE_INVALID              = 0xFF
-        self.image_type = 6 # -i
-
-        # Possible magic numbers from am_defines.py
-        self.AM_IMAGE_MAGIC_MAIN       = 0xC0
-        self.AM_IMAGE_MAGIC_CHILD      = 0xCC
-        self.AM_IMAGE_MAGIC_NONSECURE  = 0xCB
-        self.AM_IMAGE_MAGIC_INFO0      = 0xCF
-        self.AM_IMAGE_MAGIC_CUSTPATCH  = 0xC1
-        self.magic_num = 0xCB # --magic-num
-
+        self.image_type = 6 # -i (AM_SECBOOT_WIRED_IMAGETYPE_NONSECURE)
+        self.magic_num = 0xCB # --magic-num (AM_IMAGE_MAGIC_NONSECURE)
         self.crcI = 1 # Install CRC check enabled (0,1)
         self.crcB = 0 # Boot CRC check enabled (0,1)
         self.authI = 0 # Install Authentication check enabled (0,1)
@@ -208,10 +191,26 @@ class RemoteWidget(QWidget):
         self.authalgo = 0 # (0, AM_SECBOOT_AUTH_ALGO_MAX+1)
         self.encalgo = 0 # (0, AM_SECBOOT_ENC_ALGO_MAX+1)
         self.split = 0x48000 # MAX_DOWNLOAD_SIZE from am_defines.py
-        self.abort = 1 # Should it send abort command? (0 = abort, 1 = abort and quit, -1 = no abort)
+        self.abort = -1 # Should it send abort command? (0 = abort, 1 = abort and quit, -1 = no abort)
         self.otadesc = 0xFE000 # OTA Descriptor Page address (hex) - (Default is 0xFE000 - at the end of main flash)
 
-        # from am_defines.py
+        # ///// START of defines taken from am_defines.py
+        # Really these should not be self.'globals'. It might be best to put them back into a separate file?
+        self.AM_SECBOOT_WIRED_IMAGETYPE_SBL                  = 0
+        self.AM_SECBOOT_WIRED_IMAGETYPE_AM3P                 = 1
+        self.AM_SECBOOT_WIRED_IMAGETYPE_PATCH                = 2
+        self.AM_SECBOOT_WIRED_IMAGETYPE_MAIN                 = 3
+        self.AM_SECBOOT_WIRED_IMAGETYPE_CHILD                = 4
+        self.AM_SECBOOT_WIRED_IMAGETYPE_CUSTPATCH            = 5
+        self.AM_SECBOOT_WIRED_IMAGETYPE_NONSECURE            = 6
+        self.AM_SECBOOT_WIRED_IMAGETYPE_INFO0                = 7
+        self.AM_SECBOOT_WIRED_IMAGETYPE_INFO0_NOOTA          = 32
+        self.AM_SECBOOT_WIRED_IMAGETYPE_INVALID              = 0xFF
+        self.AM_IMAGE_MAGIC_MAIN       = 0xC0
+        self.AM_IMAGE_MAGIC_CHILD      = 0xCC
+        self.AM_IMAGE_MAGIC_NONSECURE  = 0xCB
+        self.AM_IMAGE_MAGIC_INFO0      = 0xCF
+        self.AM_IMAGE_MAGIC_CUSTPATCH  = 0xC1
         self.AM_SECBOOT_WIRED_MSGTYPE_HELLO          = 0
         self.AM_SECBOOT_WIRED_MSGTYPE_STATUS         = 1
         self.AM_SECBOOT_WIRED_MSGTYPE_OTADESC        = 2
@@ -275,8 +274,10 @@ class RemoteWidget(QWidget):
         self.INFO_MAX_AUTH_KEY_WORDS         = 32
         self.INFO_MAX_ENC_KEY_WORDS          = 32
         self.ivVal0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        # ///// END of defines taken from am_defines.py
 
-        #from keys_info.py
+        # ///// START of defines taken from keys_info.py
+        # Really these should not be self.'globals'. It might be best to put them back into a separate file?
         self.minAesKeyIdx = 8
         self.maxAesKeyIdx = 15
         self.minHmacKeyIdx = 8
@@ -302,6 +303,7 @@ class RemoteWidget(QWidget):
                 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66,
                 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE,
             ]
+        # ///// END of defines taken from keys_info.py
 
         # ///// END of code taken from ambiq_bin2board.py
 
@@ -335,7 +337,7 @@ class RemoteWidget(QWidget):
         self.update_baud_rates()
 
         # Upload Button
-        self.upload_btn = QPushButton(self.tr('Upload'))
+        self.upload_btn = QPushButton(self.tr('  Upload Firmware  '))
         self.upload_btn.pressed.connect(self.on_upload_btn_pressed)
 
         # Upload Button
@@ -392,7 +394,7 @@ class RemoteWidget(QWidget):
         self.messages.ensureCursorVisible()
         self.messages.appendPlainText(msg)
         self.messages.ensureCursorVisible()
-        self.repaint()
+        self.repaint() # Update/refresh the message window
 
     def _load_settings(self) -> None:
         """Load settings on startup."""
@@ -445,7 +447,9 @@ class RemoteWidget(QWidget):
                         indexOfCH340 = index
                 elif (indexOfCH340 == -1):  # Otherwise select the first available CH340
                     indexOfCH340 = index
-                    # it could be too early to call self.addMessage("CH340 found at index " + str(indexOfCH340))
+                    # it could be too early to call
+                    #self.addMessage("CH340 found at index " + str(indexOfCH340))
+                    # as the GUI might not exist yet
             index = index + 1
 
         if indexOfCH340 > -1:
@@ -729,7 +733,7 @@ class RemoteWidget(QWidget):
 
             self.messages.clear() # Clear the message window
 
-            self.addMessage("Artemis SVL Bootloader")
+            self.addMessage("Artemis SVL Uploader")
 
             for _ in range(num_tries):
 
@@ -808,30 +812,9 @@ class RemoteWidget(QWidget):
         return sig
 
 
-    def compute_rsa_sign(self, prvKeyFile, data):
-        """RSA PKCS1_v1_5 sign"""
-        key = open(prvKeyFile, "r").read() 
-        rsakey = RSA.importKey(key) 
-        signer = PKCS1_v1_5.new(rsakey) 
-        digest = SHA256.new() 
-        digest.update(bytes(data)) 
-        sign = signer.sign(digest) 
-        return sign
-
-
-    def verify_rsa_sign(self, pubKeyFile, data, sign):
-        """RSA PKCS1_v1_5 sign verification"""
-        key = open(pubKeyFile, "r").read() 
-        rsakey = RSA.importKey(key) 
-        #print(hex(rsakey.n))
-        verifier = PKCS1_v1_5.new(rsakey)
-        digest = SHA256.new() 
-        digest.update(bytes(data)) 
-        return verifier.verify(digest, sign)
-
-
     def fill_word(self, barray, offset, w):
         """Fill one word in bytearray"""
+        # I guess barray must be mutable?
         barray[offset + 0]  = (w >>  0) & 0x000000ff;
         barray[offset + 1]  = (w >>  8) & 0x000000ff;
         barray[offset + 2]  = (w >> 16) & 0x000000ff;
@@ -862,8 +845,8 @@ class RemoteWidget(QWidget):
     # ///// START of code taken from ambiq_bin2board.py
 
     def bin2blob_process(self) -> None:
-# def bin2blob_process(loadaddress, appFile, magicNum, crcI, crcB, authI, authB, protection, authKeyIdx, output, encKeyIdx, version, erasePrev, child0, child1, authalgo, encalgo):
-#     bin2blob_process(args.loadaddress_blob, args.appFile, args.magic_num, args.crcI, args.crcB, args.authI, args.authB, args.protection, args.authkey, args.output, args.kek, args.version, args.erasePrev, args.child0, args.child1, args.authalgo, args.encalgo)
+# was:       def bin2blob_process(loadaddress, appFile, magicNum, crcI, crcB, authI, authB, protection, authKeyIdx, output, encKeyIdx, version, erasePrev, child0, child1, authalgo, encalgo):
+# was called as: bin2blob_process(args.loadaddress_blob, args.appFile, args.magic_num, args.crcI, args.crcB, args.authI, args.authB, args.protection, args.authkey, args.output, args.kek, args.version, args.erasePrev, args.child0, args.child1, args.authalgo, args.encalgo)
         """Generate the image blob as per command line parameters"""
 
         loadaddress = self.load_address_blob
@@ -941,7 +924,7 @@ class RemoteWidget(QWidget):
         blobLen = hdr_length + app_length
         w0 = (self.magic_num << 24) | ((encVal & 0x1) << 23) | blobLen
 
-        self.addMessage("w0 =" + str(hex(w0)))
+        self.addMessage("w0 = " + str(hex(w0)))
         self.fill_word(hdr_binarray, 0, w0)
 
         # w2
@@ -969,9 +952,9 @@ class RemoteWidget(QWidget):
         self.fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_VERKEY, versionKeyWord)
 
         # Initialize child (Child Ptr/ Feature key)
-        self.addMessage("child0/feature = " + str(self.child0))
+        self.addMessage("child0/feature = " + str(hex(self.child0)))
         self.fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_CHILDPTR, self.child0)
-        self.addMessage("child1 = " + str(self.child1))
+        self.addMessage("child1 = " + str(hex(self.child1)))
         self.fill_word(hdr_binarray, self.AM_IMAGEHDR_OFFSET_CHILDPTR + 4, self.child1)
 
         authKeyIdx = authKeyIdx - self.minHmacKeyIdx
@@ -1042,9 +1025,9 @@ class RemoteWidget(QWidget):
             out.write(enc_binarray)
 
 
-    def blob2wired_process(self) -> None:
-# def blob2wired_process(appFile, imagetype, loadaddress, authalgo, encalgo, authKeyIdx, encKeyIdx, optionsVal, maxSize, output):
-#     blob2wired_process( blob2wiredfile, args.imagetype, args.loadaddress_image, args.authalgo, args.encalgo, args.authkey, args.kek, args.options, args.split, args.output)
+    def blob2wired_process(self, appFile) -> None:
+# was:       def blob2wired_process(appFile, imagetype, loadaddress, authalgo, encalgo, authKeyIdx, encKeyIdx, optionsVal, maxSize, output):
+# was called as: blob2wired_process( blob2wiredfile, args.imagetype, args.loadaddress_image, args.authalgo, args.encalgo, args.authkey, args.kek, args.options, args.split, args.output)
 
         """Generate the image blob as per command line parameters"""
 
@@ -1052,14 +1035,14 @@ class RemoteWidget(QWidget):
 
         app_binarray = bytearray()
         # Open the file, and read it into an array of integers.
-        self.addMessage("testing: " + self.appFile )
-        with open(resource_path(self.appFile),'rb') as f_app:
+        self.addMessage("testing: " + appFile )
+        with open(appFile,'rb') as f_app:
             app_binarray.extend(f_app.read())
             f_app.close()
 
         # Make sure it is page multiple
         if ((self.split & (self.FLASH_PAGE_SIZE - 1)) != 0):
-            self.addMessage("split needs to be multiple of flash page size")
+            self.addMessage("Split needs to be multiple of flash page size")
             return
 
         encKeyIdx = self.kek
@@ -1180,7 +1163,7 @@ class RemoteWidget(QWidget):
                     hdr_binarray[self.AM_WU_IMAGEHDR_OFFSET_SIG + x]  = sig[x]
 
             self.addMessage("Writing to file " + str(output))
-            self.addMessage("Image from " + str(hex(start)) + " to " + str(hex(end)) + " will be loaded at" + str(hex(loadaddress)))
+            self.addMessage("Image from " + str(hex(start)) + " to " + str(hex(end)) + " will be loaded at " + str(hex(loadaddress)))
             out.write(hdr_binarray[0:self.AM_WU_IMAGEHDR_START_ENCRYPT])
             out.write(enc_binarray)
 
@@ -1242,7 +1225,7 @@ class RemoteWidget(QWidget):
 
                 if(self.loadSuccess == True):
                     self.addMessage("Tries = " + str(self.loadTries))
-                    self.addMessage("Upload complete!")
+                    self.addMessage("Bootloader updated!")
                     return
                 else:
                     self.addMessage("Fail")
@@ -1251,6 +1234,12 @@ class RemoteWidget(QWidget):
 
         self.addMessage("Tries = " + str(self.loadTries))
         self.addMessage("Upload failed!")
+
+        try:
+            self.ser.close()
+        except:
+            pass
+
         return
 
 
@@ -1273,11 +1262,11 @@ class RemoteWidget(QWidget):
         word = self.word_from_bytes(response, 4)
         if ((word & 0xFFFF) == self.AM_SECBOOT_WIRED_MSGTYPE_STATUS):
             # Received Status
-            print("Bootloader connected")
+            self.addMessage("Bootloader connected")
 
             self.addMessage("Received Status")
-            self.addMessage("length = " + str(hex((word >> 16))))
-            self.addMessage("version = " + str(hex(self.word_from_bytes(response, 8))))
+            self.addMessage("Length = " + str(hex((word >> 16))))
+            self.addMessage("Version = " + str(hex(self.word_from_bytes(response, 8))))
             self.addMessage("Max Storage = " + str(hex(self.word_from_bytes(response, 12))))
             self.addMessage("Status = " + str(hex(self.word_from_bytes(response, 16))))
             self.addMessage("State = " + str(hex(self.word_from_bytes(response, 20))))
@@ -1291,7 +1280,8 @@ class RemoteWidget(QWidget):
                 abortMsg = bytearray([0x00]*8);
                 self.fill_word(abortMsg, 0, ((12 << 16) | self.AM_SECBOOT_WIRED_MSGTYPE_ABORT))
                 self.fill_word(abortMsg, 4, self.abort)
-                if self.send_ackd_command(abortMsg) == False:
+                response, success = self.send_ackd_command(abortMsg)
+                if success == False:
                     self.addMessage("Failed to ack command")
                     return
 
@@ -1322,18 +1312,18 @@ class RemoteWidget(QWidget):
                 # It is assumed that maxSize (self.split) is 256b multiple
                 maxImageSize = self.split
                 if ((maxImageSize & (self.FLASH_PAGE_SIZE - 1)) != 0):
-                    self.addMessage("split needs to be multiple of flash page size")
+                    self.addMessage("Split needs to be multiple of flash page size")
                     return
 
                 # Each Block of image consists of AM_WU_IMAGEHDR_SIZE Bytes Image header and the Image blob
                 maxUpdateSize = self.AM_WU_IMAGEHDR_SIZE + maxImageSize
                 numUpdates = (totalLen + maxUpdateSize - 1) // maxUpdateSize # Integer division
-                self.addMessage("number of updates needed = " + str(numUpdates))
+                self.addMessage("Number of updates needed = " + str(numUpdates))
 
                 end = totalLen
                 for numUpdates in range(numUpdates, 0 , -1):
                     start = (numUpdates-1)*maxUpdateSize
-                    crc = crc32(application[start:end])
+                    crc = self.crc32(application[start:end])
                     applen = end - start
                     self.addMessage("Sending block of size " + str(hex(applen)) + " from " + str(hex(start)) + " to " + str(hex(end)))
                     end = end - applen
@@ -1374,7 +1364,7 @@ class RemoteWidget(QWidget):
                         self.fill_word(dataMsg, 4, x)
 
                         self.addMessage("Sending Data Packet of length " + str(chunklen))
-                        response, success = send_ackd_command(dataMsg + chunk)
+                        response, success = self.send_ackd_command(dataMsg + chunk)
                         if success == False:
                             self.addMessage("Failed to ack command")
                             return
@@ -1388,7 +1378,7 @@ class RemoteWidget(QWidget):
 ##                verboseprint('Sending Raw Command.')
 ##                ser.write(blob)
 
-            if (self.reset != 0):
+            if (self.reset_after != 0):
                 # Send reset
                 self.addMessage("Sending Reset Command.")
                 resetmsg = bytearray([0x00]*8);
@@ -1409,6 +1399,7 @@ class RemoteWidget(QWidget):
             word = self.word_from_bytes(response, 4)
             self.addMessage("msgType = " + str(hex(word & 0xFFFF)))
             self.addMessage("Length = " + str(hex(word >> 16)))
+
 
     def send_ackd_command(self, command) -> (bytes, bool):
         """Send ACK'd command. Sends a command, and waits for an ACK."""
@@ -1433,6 +1424,7 @@ class RemoteWidget(QWidget):
                 return (b'',False) #Return error
 
         return (response, True)
+
 
     def send_command(self, params, response_len) -> (bytes, bool):
         """Send command. Sends a command, and waits for the response."""
@@ -1460,6 +1452,7 @@ class RemoteWidget(QWidget):
 
         return (response, True)
 
+
     def send_bytewise_command(self, command, params, response_len) -> (bytes, bool):
         """Send a command that uses an array of bytes as its parameters."""
 
@@ -1479,167 +1472,16 @@ class RemoteWidget(QWidget):
 
         return (response, True)
 
-###******************************************************************************
-###
-### Errors
-###
-###******************************************************************************
-##class BootError(Exception):
-##    pass
-##
-##class NoAckError(BootError):
-##    pass
-##
-##
-##def parse_arguments():
-##    parser = argparse.ArgumentParser(description =
-##                                     'Combination script to upload application binaries to Artemis module. Includes:\n\t\'- bin2blob: create OTA blob from binary image\'\n\t\'- blob2wired: create wired update image from OTA blob\'\n\t\'- upload: send wired update image to Apollo3 Artemis module via serial port\'\n\nThere are many command-line arguments. They have been labeled by which steps they apply to\n')
-##
-##    parser.add_argument('-a', dest = 'abort', default=-1, type=int, choices = [0,1,-1],
-##                        help = 'upload: Should it send abort command? (0 = abort, 1 = abort and quit, -1 = no abort) (default is -1)')
-##
-##    parser.add_argument('--authalgo', dest = 'authalgo', type=auto_int, default=0, choices=range(0, AM_SECBOOT_AUTH_ALGO_MAX+1),
-##                        help = 'bin2blob, blob2wired: ' + str(helpAuthAlgo))
-##
-##    parser.add_argument('--authI', dest = 'authI', type=auto_int, default=0, choices=[0,1],
-##                        help = 'bin2blob: Install Authentication check enabled (Default = N)?')
-##
-##    parser.add_argument('--authB', dest = 'authB', type=auto_int, default=0, choices=[0,1],
-##                        help = 'bin2blob: Boot Authentication check enabled (Default = N)?')
-##
-##    parser.add_argument('--authkey', dest = 'authkey', type=auto_int, default=(minHmacKeyIdx), choices = range(minHmacKeyIdx, maxHmacKeyIdx + 1),
-##                        help = 'bin2blob, blob2wired: Authentication Key Idx? (' + str(minHmacKeyIdx) + ' to ' + str(maxHmacKeyIdx) + ')')
-##
-##    parser.add_argument('-b', dest='baud', default=115200, type=int,
-##                        help = 'upload: Baud Rate (default is 115200)')
-##
-##    parser.add_argument('--bin', dest='appFile', type=argparse.FileType('rb'),
-##                        help='bin2blob: binary file (blah.bin)')
-##
-##    parser.add_argument('-clean', dest='clean', default=0, type=int,
-##                        help = 'All: whether or not to remove intermediate files')
-##
-##    parser.add_argument('--child0', dest = 'child0', type=auto_int, default=hex(0xFFFFFFFF),
-##                        help = 'bin2blob: child (blobPtr#0 for Main / feature key for AM3P)')
-##
-##    parser.add_argument('--child1', dest = 'child1', type=auto_int, default=hex(0xFFFFFFFF),
-##                        help = 'bin2blob: child (blobPtr#1 for Main)')
-##
-##    parser.add_argument('--crcI', dest = 'crcI', type=auto_int, default=1, choices=[0,1],
-##                        help = 'bin2blob: Install CRC check enabled (Default = Y)?')
-##
-##    parser.add_argument('--crcB', dest = 'crcB', type=auto_int, default=0, choices=[0,1],
-##                        help = 'bin2blob: Boot CRC check enabled (Default = N)?')
-##
-##    parser.add_argument('--encalgo', dest = 'encalgo', type=auto_int, default=0, choices = range(0, AM_SECBOOT_ENC_ALGO_MAX+1),
-##                        help = 'bin2blob, blob2wired: ' + str(helpEncAlgo))
-##
-##    parser.add_argument('--erasePrev', dest = 'erasePrev', type=auto_int, default=0, choices=[0,1],
-##                        help = 'bin2blob: erasePrev (Valid only for main)')
-##
-##    # parser.add_argument('-f', dest='binfile', default='',
-##    #                     help = 'upload: Binary file to program into the target device')
-##
-##    parser.add_argument('-i', dest = 'imagetype', default=AM_SECBOOT_WIRED_IMAGETYPE_INVALID, type=auto_int,
-##                        choices = [
-##                                (AM_SECBOOT_WIRED_IMAGETYPE_SBL),
-##                                (AM_SECBOOT_WIRED_IMAGETYPE_AM3P),
-##                                (AM_SECBOOT_WIRED_IMAGETYPE_PATCH),
-##                                (AM_SECBOOT_WIRED_IMAGETYPE_MAIN),
-##                                (AM_SECBOOT_WIRED_IMAGETYPE_CHILD),
-##                                (AM_SECBOOT_WIRED_IMAGETYPE_CUSTPATCH),
-##                                (AM_SECBOOT_WIRED_IMAGETYPE_NONSECURE),
-##                                (AM_SECBOOT_WIRED_IMAGETYPE_INFO0),
-##                                (AM_SECBOOT_WIRED_IMAGETYPE_INFO0_NOOTA),
-##                                (AM_SECBOOT_WIRED_IMAGETYPE_INVALID)
-##                                ],
-##                        help = 'blob2wired, upload: ImageType ('
-##                                + str(AM_SECBOOT_WIRED_IMAGETYPE_SBL) + ': SBL, '
-##                                + str(AM_SECBOOT_WIRED_IMAGETYPE_AM3P) + ': AM3P, '
-##                                + str(AM_SECBOOT_WIRED_IMAGETYPE_PATCH) + ': Patch, '
-##                                + str(AM_SECBOOT_WIRED_IMAGETYPE_MAIN) + ': Main, '
-##                                + str(AM_SECBOOT_WIRED_IMAGETYPE_CHILD) + ': Child, '
-##                                + str(AM_SECBOOT_WIRED_IMAGETYPE_CUSTPATCH) + ': CustOTA, '
-##                                + str(AM_SECBOOT_WIRED_IMAGETYPE_NONSECURE) + ': NonSecure, '
-##                                + str(AM_SECBOOT_WIRED_IMAGETYPE_INFO0) + ': Info0 '
-##                                + str(AM_SECBOOT_WIRED_IMAGETYPE_INFO0_NOOTA) + ': Info0_NOOTA) '
-##                                + str(AM_SECBOOT_WIRED_IMAGETYPE_INVALID) + ': Invalid) '
-##                                '- default[Invalid]')
-##
-##    parser.add_argument('--kek', dest = 'kek', type=auto_int, default=(minAesKeyIdx), choices = range(minAesKeyIdx, maxAesKeyIdx+1),
-##                        help = 'KEK index? (' + str(minAesKeyIdx) + ' to ' + str(maxAesKeyIdx) + ')')
-##
-##    parser.add_argument('--load-address-wired', dest='loadaddress_blob', type=auto_int, default=hex(0x60000),
-##                        help='blob2wired: Load address of the binary - Where in flash the blob will be stored (could be different than install address of binary within).')
-##
-##    parser.add_argument('--load-address-blob', dest='loadaddress_image', type=auto_int, default=hex(AM_SECBOOT_DEFAULT_NONSECURE_MAIN),
-##                        help='bin2blob: Load address of the binary.')
-##
-##    parser.add_argument('--loglevel', dest='loglevel', type=auto_int, default=AM_PRINT_LEVEL_INFO,
-##                        choices = range(AM_PRINT_LEVEL_MIN, AM_PRINT_LEVEL_MAX+1),
-##                        help='bin2blob, blob2wired: ' + str(helpPrintLevel))
-##
-##    parser.add_argument('--magic-num', dest='magic_num', default=hex(AM_IMAGE_MAGIC_NONSECURE),
-##                        type=lambda x: x.lower(),
-###                        type = str.lower,
-##                        choices = [
-##                                hex(AM_IMAGE_MAGIC_MAIN),
-##                                hex(AM_IMAGE_MAGIC_CHILD),
-##                                hex(AM_IMAGE_MAGIC_CUSTPATCH),
-##                                hex(AM_IMAGE_MAGIC_NONSECURE),
-##                                hex(AM_IMAGE_MAGIC_INFO0)
-##                                ],
-##                        help = 'bin2blob: Magic Num ('
-##                                + str(hex(AM_IMAGE_MAGIC_MAIN)) + ': Main, '
-##                                + str(hex(AM_IMAGE_MAGIC_CHILD)) + ': Child, '
-##                                + str(hex(AM_IMAGE_MAGIC_CUSTPATCH)) + ': CustOTA, '
-##                                + str(hex(AM_IMAGE_MAGIC_NONSECURE)) + ': NonSecure, '
-##                                + str(hex(AM_IMAGE_MAGIC_INFO0)) + ': Info0) '
-##                                '- default[Main]'
-##                                )
-##
-##    parser.add_argument('-o', dest = 'output', default='wuimage',
-##                    help = 'all: Output filename (without the extension) [also used for intermediate filenames]')
-##
-##    parser.add_argument('-ota', dest = 'otadesc', type=auto_int, default=0xFE000,
-##                        help = 'upload: OTA Descriptor Page address (hex) - (Default is 0xFE000 - at the end of main flash) - enter 0xFFFFFFFF to instruct SBL to skip OTA')
-##
-##    parser.add_argument('--options', dest = 'options', type=auto_int, default=0x1,
-##                        help = 'blob2wired: Options (16b hex value) - bit0 instructs to perform OTA of the image after wired download (set to 0 if only downloading & skipping OTA flow)')
-##
-##    parser.add_argument('-p', dest = 'protection', type=auto_int, default=0, choices = [0x0, 0x1, 0x2, 0x3],
-##                        help = 'bin2blob: protection info 2 bit C W')
-##
-##    parser.add_argument('-port', dest = 'port', help = 'upload: Serial COMx Port')
-##
-##    parser.add_argument('-r', dest = 'reset', default=1, type=auto_int, choices = [0,1,2],
-##                        help = 'upload: Should it send reset command after image download? (0 = no reset, 1 = POI, 2 = POR) (default is 1)')
-##
-##    parser.add_argument('--raw', dest='raw', default='',
-##                        help = 'upload: Binary file for raw message')
-##
-##    parser.add_argument('--split', dest='split', type=auto_int, default=hex(MAX_DOWNLOAD_SIZE),
-##                        help='blob2wired, upload: Specify the max block size if the image will be downloaded in pieces')
-##
-##    parser.add_argument('--version', dest = 'version', type=auto_int, default=0,
-##                        help = 'bin2blob: version (15 bit)')
-##
-##    parser.add_argument("-v", "--verbose", default=0, help="All: Enable verbose output",
-##                        action="store_true")
-##
-##
-##    args = parser.parse_args()
-##    args.magic_num = int(args.magic_num, 16)
-##
-##
-##    return args
-
 
     def update_main(self) -> None:
         """Updater main function"""
 
+        self.messages.clear() # Clear the message window
+
+        self.addMessage("Artemis Bootloader Update")
+
         self.bin2blob_process()
-        self.blob2wired_process()
+        self.blob2wired_process(self.blob2wiredfile)
         self.updater()
 
 
@@ -1650,7 +1492,7 @@ if __name__ == '__main__':
     app = QApplication([])
     app.setOrganizationName('SparkFun')
     app.setApplicationName('Artemis Firmware Uploader ' + guiVersion)
-    app.setWindowIcon(QIcon("Artemis-Logo-Rounded.png"))
+    app.setWindowIcon(QIcon(resource_path("Artemis-Logo-Rounded.png")))
     w = RemoteWidget()
     w.show()
     sys.exit(app.exec_())
