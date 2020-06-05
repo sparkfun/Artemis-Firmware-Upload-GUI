@@ -3,13 +3,11 @@ This is a simple firmware upload GUI designed for the Artemis platform.
 Very handy for updating devices in the field without the need for compiling
 and uploading through Arduino.
 
-This is the "integrated" version which merges code from both
-ambiq_bin2board.py and artemis_svl.py
+This is the "integrated" version which includes code from both ambiq_bin2board.py and artemis_svl.py
+
+If you are building with a new version of artemis_svl.bin, remember to update BOOTLOADER_VERSION below.
 
 Based on gist by Stefan Lehmann: https://gist.github.com/stlehmann/bea49796ad47b1e7f658ddde9620dff1
-
-Also based on Srikanth Anantharam's SerialTerminal example
-https://github.com/sria91/SerialTerminal
 
 MIT license
 
@@ -24,10 +22,6 @@ artemis_firmware_uploader_gui.py (this file!)
 artemis_firmware_uploader_gui.ico (icon file for the .exe)
 Artemis-Logo-Rounded.png (icon for the GUI widget)
 artemis_svl.bin (the bootloader binary)
-
-TODO:
-
-Push user to upgrade bootloader as needed
 
 """
 
@@ -66,7 +60,7 @@ from typing import Iterator, Tuple
 from PyQt5.QtCore import QSettings, QProcess, QTimer
 from PyQt5.QtWidgets import QWidget, QLabel, QComboBox, QGridLayout, \
     QPushButton, QApplication, QLineEdit, QFileDialog, QPlainTextEdit
-from PyQt5.QtGui import QCloseEvent, QTextCursor, QIcon
+from PyQt5.QtGui import QCloseEvent, QTextCursor, QIcon, QFont
 from PyQt5.QtSerialPort import QSerialPortInfo
 import sys
 import time
@@ -78,6 +72,8 @@ import array
 import hashlib
 import hmac
 import binascii
+
+BOOTLOADER_VERSION = 5 # << Change this to match the version of artemis_svl.bin
 
 # Setting constants
 SETTING_PORT_NAME = 'port_name'
@@ -104,6 +100,8 @@ class RemoteWidget(QWidget):
 
     def __init__(self, parent: QWidget = None) -> None:
         super().__init__(parent)
+
+        self.installed_bootloader = -1 # Use this to record the bootloader version
 
         # ///// START of code taken from artemis_svl.py
         
@@ -165,61 +163,67 @@ class RemoteWidget(QWidget):
 
         # ARGS - these replace the actual args
         # Maybe these should be in a JSON file?
-        self.appFile = 'artemis_svl.bin' # --bin
-        self.load_address_blob = 0xC000 # --load-address-wired dest=loadaddress_blob default=0x60000
-        # Output filename (without the extension) [also used for intermediate filenames]
-        self.output_file = 'application' # -o
-        self.version = 0x0 # --version
-        self.load_address_image = 0x20000 # --load-address-blob dest=loadaddress_image default=AM_SECBOOT_DEFAULT_NONSECURE_MAIN=0xC000
-        # Options (16b hex value) - bit0 instructs to perform OTA of the image after wired download
-        # (set to 0 if only downloading & skipping OTA flow)'
-        self.options = 0x1 # --options
-        # Should it send reset command after image download? (0 = no reset, 1 = POI, 2 = POR)
-        self.reset_after = 2 # -r
-        self.image_type = 6 # -i (AM_SECBOOT_WIRED_IMAGETYPE_NONSECURE)
-        self.magic_num = 0xCB # --magic-num (AM_IMAGE_MAGIC_NONSECURE)
-        self.crcI = 1 # Install CRC check enabled (0,1)
-        self.crcB = 0 # Boot CRC check enabled (0,1)
-        self.authI = 0 # Install Authentication check enabled (0,1)
-        self.authB = 0 # Boot Authentication check enabled (0,1)
-        self.protection = 0 # protection info 2 bit C W (0,1,2,3)
-        self.authkey = 8 # Authentication Key Idx (minHmacKeyIdx from keys_info.py)
-        self.kek = 8 # KEK index (minAesKeyIdx from keys_info.py)
-        self.erasePrev = 0 # (0,1)
-        self.child0 = 0xFFFFFFFF # child (blobPtr#0 for Main / feature key for AM3P)
-        self.child1 = 0xFFFFFFFF # child (blobPtr#1 for Main)
-        self.authalgo = 0 # (0, AM_SECBOOT_AUTH_ALGO_MAX+1)
-        self.encalgo = 0 # (0, AM_SECBOOT_ENC_ALGO_MAX+1)
-        self.split = 0x48000 # MAX_DOWNLOAD_SIZE from am_defines.py
-        self.abort = -1 # Should it send abort command? (0 = abort, 1 = abort and quit, -1 = no abort)
-        self.otadesc = 0xFE000 # OTA Descriptor Page address (hex) - (Default is 0xFE000 - at the end of main flash)
+        self.abort = -1             # -a            Should it send abort command? (0 = abort, 1 = abort and quit, -1 = no abort)
+        self.authalgo = 0           # --authalgo    (0, AM_SECBOOT_AUTH_ALGO_MAX+1)
+        self.authI = 0              # --authI       Install Authentication check enabled (0,1)
+        self.authB = 0              # --authB       Boot Authentication check enabled (0,1)
+        self.authkey = 8            # --authkey     Authentication Key Idx (minHmacKeyIdx from keys_info.py)
+        self.appFile = 'artemis_svl.bin'    # --bin Bootloader binary file
+        self.child0 = 0xFFFFFFFF    # --child0      (blobPtr#0 for Main / feature key for AM3P)
+        self.child1 = 0xFFFFFFFF    # --child1      (blobPtr#1 for Main)
+        self.crcI = 1               # --crcI        Install CRC check enabled (0,1)
+        self.crcB = 0               # --crcB        Boot CRC check enabled (0,1)
+        self.encalgo = 0            # --encalgo     (0, AM_SECBOOT_ENC_ALGO_MAX+1)
+        self.erasePrev = 0          # --erasePrev   (0,1)
+        self.image_type = 6         # -i            Image type (AM_SECBOOT_WIRED_IMAGETYPE_NONSECURE)
+        self.kek = 8                # --kek         KEK index (minAesKeyIdx from keys_info.py)
+        self.load_address_blob = 0xC000     # --load-address-wired  dest=loadaddress_blob   default=0x60000
+        self.load_address_image = 0x20000   # --load-address-blob   dest=loadaddress_image  default=AM_SECBOOT_DEFAULT_NONSECURE_MAIN=0xC000
+        self.magic_num = 0xCB       # --magic-num   Magic Num (AM_IMAGE_MAGIC_NONSECURE)
+        self.output_file = 'application'    # -o    Output filename (without the extension) [also used for intermediate filenames]
+        self.otadesc = 0xFE000      # -ota          OTA Descriptor Page address (hex) - (Default is 0xFE000 - at the end of main flash)
+        self.options = 0x1          # --options     (16b hex value) - bit0 instructs to perform OTA of the image after wired download
+        self.protection = 0         # -p            Protection info 2 bit C W (0,1,2,3)
+        self.reset_after = 2        # -r            Should it send reset command after image download? (0 = no reset, 1 = POI, 2 = POR)
+        self.split = 0x48000        # --split       MAX_DOWNLOAD_SIZE from am_defines.py
+        self.version = 0x0          # --version     version (15 bit)
 
         # ///// START of defines taken from am_defines.py
         # Really these should not be self.'globals'. It might be best to put them back into a separate file?
-        self.AM_SECBOOT_WIRED_IMAGETYPE_SBL                  = 0
-        self.AM_SECBOOT_WIRED_IMAGETYPE_AM3P                 = 1
-        self.AM_SECBOOT_WIRED_IMAGETYPE_PATCH                = 2
-        self.AM_SECBOOT_WIRED_IMAGETYPE_MAIN                 = 3
-        self.AM_SECBOOT_WIRED_IMAGETYPE_CHILD                = 4
-        self.AM_SECBOOT_WIRED_IMAGETYPE_CUSTPATCH            = 5
-        self.AM_SECBOOT_WIRED_IMAGETYPE_NONSECURE            = 6
-        self.AM_SECBOOT_WIRED_IMAGETYPE_INFO0                = 7
-        self.AM_SECBOOT_WIRED_IMAGETYPE_INFO0_NOOTA          = 32
-        self.AM_SECBOOT_WIRED_IMAGETYPE_INVALID              = 0xFF
-        self.AM_IMAGE_MAGIC_MAIN       = 0xC0
-        self.AM_IMAGE_MAGIC_CHILD      = 0xCC
-        self.AM_IMAGE_MAGIC_NONSECURE  = 0xCB
-        self.AM_IMAGE_MAGIC_INFO0      = 0xCF
-        self.AM_IMAGE_MAGIC_CUSTPATCH  = 0xC1
-        self.AM_SECBOOT_WIRED_MSGTYPE_HELLO          = 0
-        self.AM_SECBOOT_WIRED_MSGTYPE_STATUS         = 1
-        self.AM_SECBOOT_WIRED_MSGTYPE_OTADESC        = 2
-        self.AM_SECBOOT_WIRED_MSGTYPE_UPDATE         = 3
-        self.AM_SECBOOT_WIRED_MSGTYPE_ABORT          = 4
-        self.AM_SECBOOT_WIRED_MSGTYPE_RECOVER        = 5
-        self.AM_SECBOOT_WIRED_MSGTYPE_RESET          = 6
-        self.AM_SECBOOT_WIRED_MSGTYPE_ACK            = 7
-        self.AM_SECBOOT_WIRED_MSGTYPE_DATA           = 8
+        self.ivVal0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        self.FLASH_PAGE_SIZE                 = 0x2000                # 8K
+        self.MAX_DOWNLOAD_SIZE               = 0x48000               # 288K
+        self.AM_SECBOOT_AESCBC_BLOCK_SIZE_WORDS  = 4
+        self.AM_SECBOOT_AESCBC_BLOCK_SIZE_BYTES  = 4*self.AM_SECBOOT_AESCBC_BLOCK_SIZE_WORDS
+        self.AM_SECBOOT_MIN_KEYIDX_INFO0     = 8 ## KeyIdx 8 - 15
+        self.AM_SECBOOT_MAX_KEYIDX_INFO0     = 15
+        self.AM_SECBOOT_MIN_KEYIDX_INFO1     = 0 ## KeyIdx 0 - 7
+        self.AM_SECBOOT_MAX_KEYIDX_INFO1     = 7
+        self.AM_SECBOOT_KEYIDX_BYTES         = 16
+        self.AM_IMAGE_MAGIC_MAIN                    = 0xC0
+        self.AM_IMAGE_MAGIC_CHILD                   = 0xCC
+        self.AM_IMAGE_MAGIC_NONSECURE               = 0xCB
+        self.AM_IMAGE_MAGIC_INFO0                   = 0xCF
+        self.AM_IMAGE_MAGIC_CUSTPATCH               = 0xC1
+        self.AM_SECBOOT_WIRED_IMAGETYPE_SBL         = 0
+        self.AM_SECBOOT_WIRED_IMAGETYPE_AM3P        = 1
+        self.AM_SECBOOT_WIRED_IMAGETYPE_PATCH       = 2
+        self.AM_SECBOOT_WIRED_IMAGETYPE_MAIN        = 3
+        self.AM_SECBOOT_WIRED_IMAGETYPE_CHILD       = 4
+        self.AM_SECBOOT_WIRED_IMAGETYPE_CUSTPATCH   = 5
+        self.AM_SECBOOT_WIRED_IMAGETYPE_NONSECURE   = 6
+        self.AM_SECBOOT_WIRED_IMAGETYPE_INFO0       = 7
+        self.AM_SECBOOT_WIRED_IMAGETYPE_INFO0_NOOTA = 32
+        self.AM_SECBOOT_WIRED_IMAGETYPE_INVALID     = 0xFF
+        self.AM_SECBOOT_WIRED_MSGTYPE_HELLO         = 0
+        self.AM_SECBOOT_WIRED_MSGTYPE_STATUS        = 1
+        self.AM_SECBOOT_WIRED_MSGTYPE_OTADESC       = 2
+        self.AM_SECBOOT_WIRED_MSGTYPE_UPDATE        = 3
+        self.AM_SECBOOT_WIRED_MSGTYPE_ABORT         = 4
+        self.AM_SECBOOT_WIRED_MSGTYPE_RECOVER       = 5
+        self.AM_SECBOOT_WIRED_MSGTYPE_RESET         = 6
+        self.AM_SECBOOT_WIRED_MSGTYPE_ACK           = 7
+        self.AM_SECBOOT_WIRED_MSGTYPE_DATA          = 8
         self.AM_SECBOOT_WIRED_ACK_STATUS_SUCCESS              = 0
         self.AM_SECBOOT_WIRED_ACK_STATUS_FAILURE              = 1
         self.AM_SECBOOT_WIRED_ACK_STATUS_INVALID_INFO0        = 2
@@ -232,8 +236,6 @@ class RemoteWidget(QWidget):
         self.AM_SECBOOT_WIRED_ACK_STATUS_INVALID_PARAM        = 9
         self.AM_SECBOOT_WIRED_ACK_STATUS_SEQ                  = 10
         self.AM_SECBOOT_WIRED_ACK_STATUS_TOO_MUCH_DATA        = 11
-        self.FLASH_PAGE_SIZE             = 0x2000                # 8K
-        self.MAX_DOWNLOAD_SIZE           = 0x48000               # 288K
         self.AM_HMAC_SIG_SIZE                = 32
         self.AM_KEK_SIZE                     = 16
         self.AM_CRC_SIZE                     = 4
@@ -249,13 +251,6 @@ class RemoteWidget(QWidget):
         self.AM_WU_IMAGEHDR_START_HMAC       = (self.AM_WU_IMAGEHDR_OFFSET_SIG + self.AM_HMAC_SIG_SIZE)
         self.AM_WU_IMAGEHDR_START_ENCRYPT    = (self.AM_WU_IMAGEHDR_OFFSET_KEK + self.AM_KEK_SIZE)
         self.AM_WU_IMAGEHDR_SIZE             = (self.AM_WU_IMAGEHDR_OFFSET_KEK + self.AM_KEK_SIZE + 16)
-        self.AM_SECBOOT_MIN_KEYIDX_INFO0     = 8 ## KeyIdx 8 - 15
-        self.AM_SECBOOT_MAX_KEYIDX_INFO0     = 15
-        self.AM_SECBOOT_MIN_KEYIDX_INFO1     = 0 ## KeyIdx 0 - 7
-        self.AM_SECBOOT_MAX_KEYIDX_INFO1     = 7
-        self.AM_SECBOOT_KEYIDX_BYTES         = 16
-        self.AM_SECBOOT_AESCBC_BLOCK_SIZE_WORDS  = 4
-        self.AM_SECBOOT_AESCBC_BLOCK_SIZE_BYTES  = 4*self.AM_SECBOOT_AESCBC_BLOCK_SIZE_WORDS
         self.AM_IMAGEHDR_SIZE_MAIN           = 256
         self.AM_IMAGEHDR_SIZE_AUX            = (112 + self.AM_KEK_SIZE)
         self.AM_IMAGEHDR_OFFSET_CRC          = 4
@@ -273,7 +268,6 @@ class RemoteWidget(QWidget):
         self.INFO_SIZE_BYTES                 = (8 * 1024)
         self.INFO_MAX_AUTH_KEY_WORDS         = 32
         self.INFO_MAX_ENC_KEY_WORDS          = 32
-        self.ivVal0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         # ///// END of defines taken from am_defines.py
 
         # ///// START of defines taken from keys_info.py
@@ -282,16 +276,7 @@ class RemoteWidget(QWidget):
         self.maxAesKeyIdx = 15
         self.minHmacKeyIdx = 8
         self.maxHmacKeyIdx = 15
-        self.INFO_KEY                    = 0xd894e09e
-        self.FLASH_KEY                   = 0x12344321
         ###### Following are just dummy keys - Should be substituted with real keys #######
-        self.keyTblHmac = [
-                # Info0 Keys - Starting at index 8
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55,
-                0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE,
-            ]
         self.keyTblAes = [
                 # Info0 Keys - Starting at index 8
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -303,6 +288,15 @@ class RemoteWidget(QWidget):
                 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66,
                 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE,
             ]
+        self.keyTblHmac = [
+                # Info0 Keys - Starting at index 8
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55,
+                0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE, 0xEF, 0xBE, 0xAD, 0xDE,
+            ]
+        self.INFO_KEY                    = 0xd894e09e
+        self.FLASH_KEY                   = 0x12344321
         # ///// END of defines taken from keys_info.py
 
         # ///// END of code taken from ambiq_bin2board.py
@@ -337,11 +331,14 @@ class RemoteWidget(QWidget):
         self.update_baud_rates()
 
         # Upload Button
+        myFont=QFont()
+        myFont.setBold(True)
         self.upload_btn = QPushButton(self.tr('  Upload Firmware  '))
+        self.upload_btn.setFont(myFont)
         self.upload_btn.pressed.connect(self.on_upload_btn_pressed)
 
         # Upload Button
-        self.updateBootloader_btn = QPushButton(self.tr('Update Bootloader'))
+        self.updateBootloader_btn = QPushButton(self.tr(' Update Bootloader '))
         self.updateBootloader_btn.pressed.connect(
             self.on_update_bootloader_btn_pressed)
 
@@ -378,7 +375,7 @@ class RemoteWidget(QWidget):
         layout.addWidget(self.messages, 4, 0, 4, 3)
 
         layout.addWidget(self.upload_btn, 15, 2)
-        layout.addWidget(self.updateBootloader_btn, 15, 1)
+        layout.addWidget(self.updateBootloader_btn, 15, 0)
 
         self.setLayout(layout)
 
@@ -433,19 +430,13 @@ class RemoteWidget(QWidget):
         """Update COM Port list in GUI."""
         self.port_combobox.clear()
 
-        settings = QSettings()
-        port_name = settings.value(SETTING_PORT_NAME)
-
         index = 0
         indexOfCH340 = -1
         for desc, name, sys in gen_serial_ports():
             longname = desc + " (" + name + ")"
             self.port_combobox.addItem(longname, sys)
             if("CH340" in longname):
-                if port_name is not None: # Allow SETTING_PORT_NAME to take priority
-                    if(sys == port_name):
-                        indexOfCH340 = index
-                elif (indexOfCH340 == -1):  # Otherwise select the first available CH340
+                if (indexOfCH340 == -1):  # Otherwise select the first available CH340
                     indexOfCH340 = index
                     # it could be too early to call
                     #self.addMessage("CH340 found at index " + str(indexOfCH340))
@@ -650,7 +641,8 @@ class RemoteWidget(QWidget):
             #self.addMessage("\twait_for_packet crc error")
             return
 
-        self.addMessage("\tGot SVL Bootloader Version: " + str(int.from_bytes(packet['data'], 'big')))
+        self.installed_bootloader = int.from_bytes(packet['data'], 'big')
+        self.addMessage("\tGot SVL Bootloader Version: " + str(self.installed_bootloader))
         self.addMessage("\tSending \'enter bootloader\' command")
 
         self.send_packet(self.SVL_CMD_BL, b'')
@@ -752,6 +744,8 @@ class RemoteWidget(QWidget):
 
                 if( bl_failed == False ):
                     break
+            if ((self.installed_bootloader >= 0) and (self.installed_bootloader < BOOTLOADER_VERSION)):
+                self.addMessage("\nYour bootloader is out of date.\nPlease click Update Bootloader.")
 
         except:
             self.addMessage("Could not communicate with board!\n")
@@ -1225,7 +1219,7 @@ class RemoteWidget(QWidget):
 
                 if(self.loadSuccess == True):
                     self.addMessage("Tries = " + str(self.loadTries))
-                    self.addMessage("Bootloader updated!")
+                    self.addMessage("Bootloader updated to version " + str(BOOTLOADER_VERSION))
                     return
                 else:
                     self.addMessage("Fail")
@@ -1391,7 +1385,7 @@ class RemoteWidget(QWidget):
                     return
 
 
-            #Success! We're all done
+            # Success! We're all done
             self.loadSuccess = True
         else:
             # Received Wrong message
@@ -1479,6 +1473,7 @@ class RemoteWidget(QWidget):
         self.messages.clear() # Clear the message window
 
         self.addMessage("Artemis Bootloader Update")
+        self.addMessage("Installing bootloader version " + str(BOOTLOADER_VERSION))
 
         self.bin2blob_process()
         self.blob2wired_process(self.blob2wiredfile)
