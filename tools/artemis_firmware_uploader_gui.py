@@ -448,9 +448,11 @@ class RemoteWidget(QWidget):
 
     def update_baud_rates(self) -> None:
         """Update baud rate list in GUI."""
-        self.baud_combobox.addItem("921600", 921600)
-        self.baud_combobox.addItem("460800", 460800)
+        # Lowest speed first so code defaults to that
+        # if settings.value(SETTING_BAUD_RATE) is None
         self.baud_combobox.addItem("115200", 115200)
+        self.baud_combobox.addItem("460800", 460800)
+        self.baud_combobox.addItem("921600", 921600)
 
     @property
     def port(self) -> str:
