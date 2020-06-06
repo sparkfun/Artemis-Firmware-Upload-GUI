@@ -33,7 +33,8 @@ Buy a [breakout board](https://www.sparkfun.com/products/15444) from SparkFun!
 Repository Contents
 -------------------
 
-* **/tools** - The python source files and executables
+* **/tools** - The python source files and svl binary
+* **LICENSE.md** contains the licence information
 
 License Information
 -------------------
