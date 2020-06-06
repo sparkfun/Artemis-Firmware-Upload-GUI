@@ -16,11 +16,18 @@ To use:
 
 Be sure you are loading firmware for your board or product. While it's unlikely to damage Artemis by loading incorrect firmware it will erase the pre-existing firmware and may lead to the peripherals being controlled incorrectly.
 
-An example *Blink.bin* firmware file is included in the repo. This firmware will cause pin 5 (the status LED on [ATP](https://www.sparkfun.com/products/15442)to blink at 1Hz.
+An example *Blink.bin* firmware file is included in the repo. This firmware will cause these LEDs to blink at 1Hz:
+* the D5 LED on the [SparkFun RedBoard Artemis ATP](https://www.sparkfun.com/products/15442)
+* the D13 LED on the [SparkFun RedBoard Artemis](https://www.sparkfun.com/products/15444)
+* the D18 LED on the [SparkFun Thing Plus - Artemis](https://www.sparkfun.com/products/15574)
+* the D19 LED on the [SparkFun RedBoard Artemis Nano](https://www.sparkfun.com/products/15443)
+* the Green LED on the [SparkFun Edge Development Board - Apollo3 Blue](https://www.sparkfun.com/products/15170)
+* the STAT LED on the [OpenLog Artemis](https://www.sparkfun.com/products/15846)
+* the D19 and GNSS LEDs on the [Artemis Global Tracker](https://www.sparkfun.com/products/16469)
 
 Pressing the 'Update Bootloader' button will erase all firmware on the Artemis and load the latest bootloader firmware. This is handy when SparkFun releases updates to the [SVL](https://github.com/sparkfun/SparkFun_Apollo3_AmbiqSuite_BSPs/blob/master/common/examples/artemis_svl/src/main.c).
 
-SparkFun labored with love to create this code. Feel like supporting open source hardware? 
+SparkFun labored with love to create this code. Feel like supporting open source hardware?
 Buy a [breakout board](https://www.sparkfun.com/products/15444) from SparkFun!
 
 Repository Contents
@@ -31,7 +38,7 @@ Repository Contents
 License Information
 -------------------
 
-This product is _**open source**_! 
+This product is _**open source**_!
 
 If you have any questions or concerns on licensing, please contact techsupport@sparkfun.com.
 
