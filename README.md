@@ -3,12 +3,16 @@ SparkFun Artemis Firmware Uploader GUI
 
 ![Artemis Firmware Uploader GUI](https://cdn.sparkfun.com/assets/home_page_posts/3/2/4/5/Artemis_Firmware_Uploader_GUI.jpg)
 
-The Artemis Firmware Uploader (AFU) is a simple to use Windows GUI for updating firmware and the bootloader on Artemis based products.
+The Artemis Firmware Uploader (AFU) is a simple to use GUI for updating firmware and the bootloader on Artemis based products.
 
 To use:
 
 * Download the [repo ZIP](https://github.com/sparkfun/Artemis-Firmware-Upload-GUI/archive/master.zip)
-* Run artemis_firmware_uploader_gui.exe
+* Run the artemis_firmware_uploader_gui executable for your platform
+  * **/Windows** contains the Windows .exe
+  * **/OSX** contains an executable for macOS X
+  * **/Linux** contains an executable built on Ubuntu
+  * **/Raspberry_Pi__Debian** contains an executable for Raspberry Pi 4 (Debian Buster)
 * Select the firmware file you'd like to upload (should end in *.bin*)
 * Attach the Artemis target board over USB
 * Select the COM port (hit Refresh to refresh the list of USB devices)
@@ -33,8 +37,27 @@ Buy a [breakout board](https://www.sparkfun.com/products/15444) from SparkFun!
 Repository Contents
 -------------------
 
-* **/tools** - The python source files and svl binary
+* **/tools** - The python source files and SVL binary
 * **LICENSE.md** contains the licence information
+
+Building Your Own Executable
+----------------------------
+
+We use Python3 and [pyinstaller](http://www.pyinstaller.org/) to create the executables. You can create your own executable if you want to, so long as you have PyQt5 and the other prerequisites installed.
+
+The **/tools** folder contains the python source code, icons and the latest SVL bootloader binary. You can run the python code directly by calling:
+
+```python3 artemis_firmware_uploader_gui.py```
+
+On Windows platforms, you can create an executable by calling:
+
+```pyinstaller --onefile --distpath=. --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin;." --add-data="Artemis-Logo-Rounded.png;." artemis_firmware_uploader_gui.py```
+
+On Linux platforms, you need to replace the semicolons with colons:
+
+```pyinstaller --onefile --distpath=. --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin:." --add-data="Artemis-Logo-Rounded.png:." artemis_firmware_uploader_gui.py```
+
+This will create a single file executable which has the SVL binary bundled into it. You can then distribute it and run it on the same platform without needing Python3.
 
 License Information
 -------------------
