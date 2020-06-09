@@ -18,6 +18,8 @@ To use:
 * Select the COM port (hit Refresh to refresh the list of USB devices)
 * Press Upload
 
+The GUI does take a few seconds to load and run. _**Don't Panic**_ if the GUI does not start right away.
+
 Be sure you are loading firmware for your board or product. While it's unlikely to damage Artemis by loading incorrect firmware it will erase the pre-existing firmware and may lead to the peripherals being controlled incorrectly.
 
 An example *Blink.bin* firmware file is included in the repo. This firmware will cause these LEDs to blink at 1Hz:
@@ -37,7 +39,11 @@ Buy a [breakout board](https://www.sparkfun.com/products/15444) from SparkFun!
 Repository Contents
 -------------------
 
-* **/tools** - The python source files and SVL binary
+* **/tools** contains the python source files and SVL binary
+* **/Windows** contains the Windows .exe
+* **/OSX** contains an executable for macOS X
+* **/Linux** contains an executable built on Ubuntu
+* **/Raspberry_Pi__Debian** contains an executable for Raspberry Pi 4 (Debian Buster)
 * **LICENSE.md** contains the licence information
 
 Building Your Own Executable
