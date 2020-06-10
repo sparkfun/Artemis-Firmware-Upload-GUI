@@ -1199,6 +1199,8 @@ class RemoteWidget(QWidget):
         #fails to correctly catch the BOOT signal about 1 out of ten times.
         #Auto-retry this number of times before we give up.
 
+        self.loadTries = 0
+
         while self.loadTries < 3:
             self.loadSuccess = False
 
