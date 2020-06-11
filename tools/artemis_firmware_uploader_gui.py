@@ -528,23 +528,6 @@ class RemoteWidget(QWidget):
 
         self.update_main() # Call ambiq_bin2board.py (previously this spawned a QProcess)
 
-    def onReadyReadStandardError(self):
-        error = self.process.readAllStandardError().data().decode()
-        # print(error)
-        self.addMessage(error)
-
-    def onReadyReadStandardOutput(self):
-        """Parse the output from the process. Update our status as we go."""
-        result = self.process.readAllStandardOutput().data().decode()
-        # print(result)
-        self.addMessage(result)
-        if ("complete" in result):
-            self.addMessage("Complete")
-        elif ("failed" in result):
-            self.addMessage("Upload Failed")
-        elif ("open" in result):
-            self.addMessage("Port In Use / Please Close")
-
     def on_browse_btn_pressed(self) -> None:
         """Open dialog to select bin file."""
         options = QFileDialog.Options()
@@ -716,6 +699,8 @@ class RemoteWidget(QWidget):
                 self.addMessage("Nominal bootload " + str(round(bps, 2)) + " bytes/sec\n")
             else:
                 self.addMessage("Upload failed!\n")
+                if (self.baudRate > 115200):
+                    self.addMessage("Please try a slower Baud Rate\n")
 
             return bl_failed
 
@@ -1189,7 +1174,7 @@ class RemoteWidget(QWidget):
             index = self.baud_combobox.findData(115200)
             if index > -1:
                 self.baud_combobox.setCurrentIndex(index)
-                self.addMessage("Changing baud rate to 115200")
+                self.addMessage("Changing Baud Rate to 115200")
 
         #Check to see if the com port is available
         try:
