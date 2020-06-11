@@ -57,11 +57,11 @@ The **/tools** folder contains the python source code, icons and the latest SVL 
 
 On Windows platforms, you can create an executable by calling:
 
-```pyinstaller --onefile --distpath=. --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin;." --add-data="Artemis-Logo-Rounded.png;." artemis_firmware_uploader_gui.py```
+```pyinstaller --onefile --noconsole --distpath=. --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin;." --add-data="Artemis-Logo-Rounded.png;." artemis_firmware_uploader_gui.py```
 
 On Linux platforms, you need to replace the semicolons with colons:
 
-```pyinstaller --onefile --distpath=. --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin:." --add-data="Artemis-Logo-Rounded.png:." artemis_firmware_uploader_gui.py```
+```pyinstaller --onefile --noconsole --distpath=. --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin:." --add-data="Artemis-Logo-Rounded.png:." artemis_firmware_uploader_gui.py```
 
 This will create a single file executable which has the SVL binary bundled into it. You can then distribute it and run it on the same platform without needing Python3.
 

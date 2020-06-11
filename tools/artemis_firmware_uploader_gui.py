@@ -13,9 +13,9 @@ MIT license
 
 Pyinstaller:
 Windows:
-pyinstaller --onefile --distpath=. --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin;." --add-data="Artemis-Logo-Rounded.png;." artemis_firmware_uploader_gui.py
+pyinstaller --onefile --noconsole --distpath=. --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin;." --add-data="Artemis-Logo-Rounded.png;." artemis_firmware_uploader_gui.py
 Linux:
-pyinstaller --onefile --distpath=. --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin:." --add-data="Artemis-Logo-Rounded.png:." artemis_firmware_uploader_gui.py
+pyinstaller --onefile --noconsole --distpath=. --icon=artemis_firmware_uploader_gui.ico --add-data="artemis_svl.bin:." --add-data="Artemis-Logo-Rounded.png:." artemis_firmware_uploader_gui.py
 
 Pyinstaller needs:
 artemis_firmware_uploader_gui.py (this file!)
@@ -1184,6 +1184,12 @@ class RemoteWidget(QWidget):
         connection_timeout = 5
 
         self.addMessage("Connecting over serial port...")
+
+        if (self.baudRate > 115200):
+            index = self.baud_combobox.findData(115200)
+            if index > -1:
+                self.baud_combobox.setCurrentIndex(index)
+                self.addMessage("Changing baud rate to 115200")
 
         #Check to see if the com port is available
         try:
