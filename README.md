@@ -33,6 +33,8 @@ An example *Blink.bin* firmware file is included in the repo. This firmware will
 
 Pressing the 'Update Bootloader' button will erase all firmware on the Artemis and load the latest bootloader firmware. This is handy when SparkFun releases updates to the [SVL](https://github.com/sparkfun/SparkFun_Apollo3_AmbiqSuite_BSPs/blob/master/common/examples/artemis_svl/src/main.c).
 
+For the [SparkFun Edge](https://www.sparkfun.com/products/15170), please click the ```Board Type``` menu and select ```Apollo3```.
+
 SparkFun labored with love to create this code. Feel like supporting open source hardware?
 Buy a [breakout board](https://www.sparkfun.com/products/15444) from SparkFun!
 
