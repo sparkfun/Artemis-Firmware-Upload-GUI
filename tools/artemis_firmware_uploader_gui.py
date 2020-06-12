@@ -374,7 +374,6 @@ class MainWindow(QMainWindow):
 
         # Arrange Layout
         layout = QGridLayout()
-        #layout.addWidget(menubar, 0, 0, 0, 3)
         
         layout.addWidget(msg_label, 1, 0)
         layout.addWidget(self.fileLocation_lineedit, 1, 1)
