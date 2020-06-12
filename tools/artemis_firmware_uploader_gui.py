@@ -59,7 +59,8 @@ artemis_svl.bin (the bootloader binary)
 from typing import Iterator, Tuple
 from PyQt5.QtCore import QSettings, QProcess, QTimer
 from PyQt5.QtWidgets import QWidget, QLabel, QComboBox, QGridLayout, \
-    QPushButton, QApplication, QLineEdit, QFileDialog, QPlainTextEdit
+    QPushButton, QApplication, QLineEdit, QFileDialog, QPlainTextEdit, \
+    QAction, QActionGroup, QMenu, QMenuBar, QMainWindow
 from PyQt5.QtGui import QCloseEvent, QTextCursor, QIcon, QFont
 from PyQt5.QtSerialPort import QSerialPortInfo
 import sys
@@ -79,6 +80,7 @@ BOOTLOADER_VERSION = 5 # << Change this to match the version of artemis_svl.bin
 SETTING_PORT_NAME = 'port_name'
 SETTING_FILE_LOCATION = 'message'
 SETTING_BAUD_RATE = '115200' # Default to 115200 for upload
+SETTING_ARTEMIS = 'True' # Default to Artemis-based boards
 
 guiVersion = 'v2.0'
 
@@ -95,10 +97,10 @@ def resource_path(relative_path):
 
 # noinspection PyArgumentList
 
-class RemoteWidget(QWidget):
-    """Main Widget."""
+class MainWindow(QMainWindow):
+    """Main Window"""
 
-    def __init__(self, parent: QWidget = None) -> None:
+    def __init__(self, parent: QMainWindow = None) -> None:
         super().__init__(parent)
 
         self.installed_bootloader = -1 # Use this to record the bootloader version
@@ -302,52 +304,47 @@ class RemoteWidget(QWidget):
         # ///// END of code taken from ambiq_bin2board.py
 
         # File location line edit
-        self.msg_label = QLabel(self.tr('Firmware File:'))
+        msg_label = QLabel(self.tr('Firmware File:'))
         self.fileLocation_lineedit = QLineEdit()
-        self.msg_label.setBuddy(self.msg_label)
+        msg_label.setBuddy(self.fileLocation_lineedit)
         self.fileLocation_lineedit.setEnabled(False)
         self.fileLocation_lineedit.returnPressed.connect(
             self.on_browse_btn_pressed)
 
         # Browse for new file button
-        self.browse_btn = QPushButton(self.tr('Browse'))
-        self.browse_btn.setEnabled(True)
-        self.browse_btn.pressed.connect(self.on_browse_btn_pressed)
+        browse_btn = QPushButton(self.tr('Browse'))
+        browse_btn.setEnabled(True)
+        browse_btn.pressed.connect(self.on_browse_btn_pressed)
 
         # Port Combobox
-        self.port_label = QLabel(self.tr('COM Port:'))
+        port_label = QLabel(self.tr('COM Port:'))
         self.port_combobox = QComboBox()
-        self.port_label.setBuddy(self.port_combobox)
+        port_label.setBuddy(self.port_combobox)
         self.update_com_ports()
 
         # Refresh Button
-        self.refresh_btn = QPushButton(self.tr('Refresh'))
-        self.refresh_btn.pressed.connect(self.on_refresh_btn_pressed)
+        refresh_btn = QPushButton(self.tr('Refresh'))
+        refresh_btn.pressed.connect(self.on_refresh_btn_pressed)
 
         # Baudrate Combobox
-        self.baud_label = QLabel(self.tr('Baud Rate:'))
+        baud_label = QLabel(self.tr('Baud Rate:'))
         self.baud_combobox = QComboBox()
-        self.baud_label.setBuddy(self.baud_combobox)
+        baud_label.setBuddy(self.baud_combobox)
         self.update_baud_rates()
 
         # Upload Button
         myFont=QFont()
         myFont.setBold(True)
-        self.upload_btn = QPushButton(self.tr('  Upload Firmware  '))
-        self.upload_btn.setFont(myFont)
-        self.upload_btn.pressed.connect(self.on_upload_btn_pressed)
+        upload_btn = QPushButton(self.tr('  Upload Firmware  '))
+        upload_btn.setFont(myFont)
+        upload_btn.pressed.connect(self.on_upload_btn_pressed)
 
         # Upload Button
-        self.updateBootloader_btn = QPushButton(self.tr(' Update Bootloader '))
-        self.updateBootloader_btn.pressed.connect(
-            self.on_update_bootloader_btn_pressed)
-
-        # Status bar
-        self.status_label = QLabel(self.tr('Status:'))
-        self.status = QLabel(self.tr(' '))
+        updateBootloader_btn = QPushButton(self.tr(' Update Bootloader '))
+        updateBootloader_btn.pressed.connect(self.on_update_bootloader_btn_pressed)
 
         # Messages Bar
-        self.messages_label = QLabel(self.tr('Status / Warnings:'))
+        messages_label = QLabel(self.tr('Status / Warnings:'))
 
         # Messages Window
         self.messages = QPlainTextEdit()
@@ -355,30 +352,53 @@ class RemoteWidget(QWidget):
         #self.messages.setMinimumSize(1, 2)
         #self.messages.resize(1, 2)
 
+        # Menu Bar
+        menubar = self.menuBar()
+        boardMenu = menubar.addMenu('Board Type')
+        
+        boardGroup = QActionGroup(self)
+
+        self.artemis = QAction('Artemis', self, checkable=True)
+        self.artemis.setStatusTip('Artemis-based boards including the OLA and AGT')
+        self.artemis.setChecked(True) # Default to artemis
+        a = boardGroup.addAction(self.artemis)
+        boardMenu.addAction(a)
+        
+        self.apollo3 = QAction('Apollo3', self, checkable=True)
+        self.apollo3.setStatusTip('Apollo3 Blue development boards including the SparkFun Edge')
+        a = boardGroup.addAction(self.apollo3)
+        boardMenu.addAction(a)
+
+        # Status Bar
+        self.statusBar()
+
         # Arrange Layout
         layout = QGridLayout()
-        layout.addWidget(self.msg_label, 0, 0)
-        layout.addWidget(self.fileLocation_lineedit, 0, 1)
-        layout.addWidget(self.browse_btn, 0, 2)
+        #layout.addWidget(menubar, 0, 0, 0, 3)
+        
+        layout.addWidget(msg_label, 1, 0)
+        layout.addWidget(self.fileLocation_lineedit, 1, 1)
+        layout.addWidget(browse_btn, 1, 2)
 
-        layout.addWidget(self.port_label, 1, 0)
-        layout.addWidget(self.port_combobox, 1, 1)
-        layout.addWidget(self.refresh_btn, 1, 2)
+        layout.addWidget(port_label, 2, 0)
+        layout.addWidget(self.port_combobox, 2, 1)
+        layout.addWidget(refresh_btn, 2, 2)
 
-        layout.addWidget(self.baud_label, 2, 0)
-        layout.addWidget(self.baud_combobox, 2, 1)
+        layout.addWidget(baud_label, 3, 0)
+        layout.addWidget(self.baud_combobox, 3, 1)
 
-        #layout.addWidget(self.status_label, 3, 0)
-        #layout.addWidget(self.status, 3, 1)
+        layout.addWidget(messages_label, 4, 0)
+        layout.addWidget(self.messages, 5, 0, 5, 3)
 
-        layout.addWidget(self.messages_label, 3, 0)
-        layout.addWidget(self.messages, 4, 0, 4, 3)
+        layout.addWidget(upload_btn, 15, 2)
+        layout.addWidget(updateBootloader_btn, 15, 0)
 
-        layout.addWidget(self.upload_btn, 15, 2)
-        layout.addWidget(self.updateBootloader_btn, 15, 0)
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
 
-        self.setLayout(layout)
-
+        #self._clean_settings() # This will delete all existing settings! Use with caution!
+        
         self._load_settings()
 
         # Make the text edit window read-only
@@ -397,17 +417,15 @@ class RemoteWidget(QWidget):
         """Load settings on startup."""
         settings = QSettings()
 
-        # port name
         port_name = settings.value(SETTING_PORT_NAME)
         if port_name is not None:
             index = self.port_combobox.findData(port_name)
             if index > -1:
                 self.port_combobox.setCurrentIndex(index)
 
-        # last message
-        msg = settings.value(SETTING_FILE_LOCATION)
-        if msg is not None:
-            self.fileLocation_lineedit.setText(msg)
+        lastFile = settings.value(SETTING_FILE_LOCATION)
+        if lastFile is not None:
+            self.fileLocation_lineedit.setText(lastFile)
 
         baud = settings.value(SETTING_BAUD_RATE)
         if baud is not None:
@@ -415,12 +433,31 @@ class RemoteWidget(QWidget):
             if index > -1:
                 self.baud_combobox.setCurrentIndex(index)
 
+        checked = settings.value(SETTING_ARTEMIS)
+        if checked is not None:
+            if (checked == 'True'):
+                self.artemis.setChecked(True)
+                self.apollo3.setChecked(False)
+            else:
+                self.artemis.setChecked(False)
+                self.apollo3.setChecked(True)
+
     def _save_settings(self) -> None:
         """Save settings on shutdown."""
         settings = QSettings()
         settings.setValue(SETTING_PORT_NAME, self.port)
         settings.setValue(SETTING_FILE_LOCATION, self.fileLocation_lineedit.text())
         settings.setValue(SETTING_BAUD_RATE, self.baudRate)
+        if (self.artemis.isChecked()): # Convert isChecked to str
+            checkedStr = 'True'
+        else:
+            checkedStr = 'False'
+        settings.setValue(SETTING_ARTEMIS, checkedStr)
+
+    def _clean_settings(self) -> None:
+        """Clean (remove) all existing settings."""
+        settings = QSettings()
+        settings.clear()
 
     def show_error_message(self, msg: str) -> None:
         """Show a Message Box with the error message."""
@@ -428,28 +465,38 @@ class RemoteWidget(QWidget):
 
     def update_com_ports(self) -> None:
         """Update COM Port list in GUI."""
+        previousPort = self.port # Record the previous port before we clear the combobox
+        
         self.port_combobox.clear()
 
         index = 0
         indexOfCH340 = -1
+        indexOfPrevious = -1
         for desc, name, sys in gen_serial_ports():
             longname = desc + " (" + name + ")"
             self.port_combobox.addItem(longname, sys)
             if("CH340" in longname):
-                if (indexOfCH340 == -1):  # Otherwise select the first available CH340
+                # Select the first available CH340
+                # This is likely to only work on Windows. Linux port names are different.
+                if (indexOfCH340 == -1):
                     indexOfCH340 = index
                     # it could be too early to call
                     #self.addMessage("CH340 found at index " + str(indexOfCH340))
                     # as the GUI might not exist yet
+            if(sys == previousPort): # Previous port still exists so record it
+                indexOfPrevious = index
             index = index + 1
 
-        if indexOfCH340 > -1:
+        if indexOfPrevious > -1: # Restore the previous port if it still exists
+            self.port_combobox.setCurrentIndex(indexOfPrevious)
+        if indexOfCH340 > -1: # If we found a CH340, let that take priority
             self.port_combobox.setCurrentIndex(indexOfCH340)
 
     def update_baud_rates(self) -> None:
         """Update baud rate list in GUI."""
         # Lowest speed first so code defaults to that
         # if settings.value(SETTING_BAUD_RATE) is None
+        self.baud_combobox.clear()
         self.baud_combobox.addItem("115200", 115200)
         self.baud_combobox.addItem("460800", 460800)
         self.baud_combobox.addItem("921600", 921600)
@@ -472,7 +519,7 @@ class RemoteWidget(QWidget):
 
     def on_refresh_btn_pressed(self) -> None:
         self.update_com_ports()
-        self.addMessage("Ports Refreshed")
+        self.addMessage("Ports Refreshed\n")
 
     def on_upload_btn_pressed(self) -> None:
         """Check if port is available"""
@@ -497,7 +544,7 @@ class RemoteWidget(QWidget):
                 return
             f.close()
 
-        self.addMessage("Uploading")
+        self.addMessage("\nUploading firmware")
 
         self.upload_main() # Call artemis_svl.py (previously this spawned a QProcess)
 
@@ -524,7 +571,7 @@ class RemoteWidget(QWidget):
                 return
             f.close()
 
-        self.addMessage("Updating bootloader")
+        self.addMessage("\nUpdating bootloader")
 
         self.update_main() # Call ambiq_bin2board.py (previously this spawned a QProcess)
 
@@ -710,9 +757,9 @@ class RemoteWidget(QWidget):
         try:
             num_tries = 3
 
-            self.messages.clear() # Clear the message window
+            #self.messages.clear() # Clear the message window
 
-            self.addMessage("Artemis SVL Uploader")
+            self.addMessage("\nArtemis SVL Uploader\n")
 
             for _ in range(num_tries):
 
@@ -735,7 +782,7 @@ class RemoteWidget(QWidget):
                 self.addMessage("\nYour bootloader is out of date.\nPlease click Update Bootloader.")
 
         except:
-            self.addMessage("Could not communicate with board!\n")
+            self.addMessage("Could not communicate with board!")
 
         try:
             self.ser.close()
@@ -1170,11 +1217,20 @@ class RemoteWidget(QWidget):
 
         self.addMessage("Connecting over serial port...")
 
-        if (self.baudRate > 115200):
-            index = self.baud_combobox.findData(115200)
-            if index > -1:
-                self.baud_combobox.setCurrentIndex(index)
-                self.addMessage("Changing Baud Rate to 115200")
+        # Artemis-base boards need 115200 baud
+        if (self.artemis.isChecked()):
+            if (self.baudRate > 115200):
+                index = self.baud_combobox.findData(115200)
+                if index > -1:
+                    self.baud_combobox.setCurrentIndex(index)
+                    self.addMessage("Changing Baud Rate to 115200")
+        # Apollo3 dev boards (SparkFun Edge) need 921600
+        else:
+            if (self.baudRate < 921600):
+                index = self.baud_combobox.findData(921600)
+                if index > -1:
+                    self.baud_combobox.setCurrentIndex(index)
+                    self.addMessage("Changing Baud Rate to 921600")
 
         #Check to see if the com port is available
         try:
@@ -1465,9 +1521,9 @@ class RemoteWidget(QWidget):
     def update_main(self) -> None:
         """Updater main function"""
 
-        self.messages.clear() # Clear the message window
+        #self.messages.clear() # Clear the message window
 
-        self.addMessage("Artemis Bootloader Update")
+        self.addMessage("\nArtemis Bootloader Update\n")
         self.addMessage("Installing bootloader version " + str(BOOTLOADER_VERSION))
 
         self.bin2blob_process()
@@ -1483,6 +1539,6 @@ if __name__ == '__main__':
     app.setOrganizationName('SparkFun')
     app.setApplicationName('Artemis Firmware Uploader ' + guiVersion)
     app.setWindowIcon(QIcon(resource_path("Artemis-Logo-Rounded.png")))
-    w = RemoteWidget()
+    w = MainWindow()
     w.show()
     sys.exit(app.exec_())
