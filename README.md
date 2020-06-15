@@ -1,7 +1,7 @@
 SparkFun Artemis Firmware Uploader GUI
 ========================================
 
-![Artemis Firmware Uploader GUI](https://cdn.sparkfun.com/assets/home_page_posts/3/2/4/5/Artemis_Firmware_Uploader_GUI.jpg)
+![Artemis Firmware Uploader GUI](https://cdn.sparkfun.com/assets/home_page_posts/3/1/2/3/Artemis-GUI-v2.jpg)
 
 The Artemis Firmware Uploader (AFU) is a simple to use GUI for updating firmware and the bootloader on Artemis based products.
 
