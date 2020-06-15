@@ -13,10 +13,11 @@ To use:
   * **/OSX** contains an executable for macOS X
   * **/Linux** contains an executable built on Ubuntu
   * **/Raspberry_Pi__Debian** contains an executable for Raspberry Pi 4 (Debian Buster)
-* Select the firmware file you'd like to upload (should end in *.bin*)
+* Click ```Browse``` and select the firmware file you'd like to upload (should end in *.bin*)
 * Attach the Artemis target board over USB
-* Select the COM port (hit Refresh to refresh the list of USB devices)
-* Press Upload
+* Select the COM port (click ```Refresh``` to refresh the list of USB devices)
+* For the [SparkFun Edge](https://www.sparkfun.com/products/15170): click the ```Board Type``` menu and select ```Apollo3```
+* Click ```Upload Firmware```
 
 The GUI does take a few seconds to load and run. _**Don't Panic**_ if the GUI does not start right away.
 
@@ -31,9 +32,7 @@ An example *Blink.bin* firmware file is included in the repo. This firmware will
 * the STAT LED on the [OpenLog Artemis](https://www.sparkfun.com/products/15846)
 * the D19 and GNSS LEDs on the [Artemis Global Tracker](https://www.sparkfun.com/products/16469)
 
-Pressing the 'Update Bootloader' button will erase all firmware on the Artemis and load the latest bootloader firmware. This is handy when SparkFun releases updates to the [SVL](https://github.com/sparkfun/SparkFun_Apollo3_AmbiqSuite_BSPs/blob/master/common/examples/artemis_svl/src/main.c).
-
-For the [SparkFun Edge](https://www.sparkfun.com/products/15170), please click the ```Board Type``` menu and select ```Apollo3```.
+Clicking ```Update Bootloader``` will erase all firmware on the Artemis and load the latest bootloader firmware. This is handy when SparkFun releases updates to the [SVL](https://github.com/sparkfun/SparkFun_Apollo3_AmbiqSuite_BSPs/blob/master/common/examples/artemis_svl/src/main.c).
 
 SparkFun labored with love to create this code. Feel like supporting open source hardware?
 Buy a [breakout board](https://www.sparkfun.com/products/15444) from SparkFun!
