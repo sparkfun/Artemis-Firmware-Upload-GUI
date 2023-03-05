@@ -72,7 +72,14 @@ class AUxArtemisBurnBootloader(AxAction):
                     "--version", "0x0", \
                     "--load-address-wired", "0xC000", \
                     "-i", "6", \
+                    "-v", \
                     "-clean", "1" ]
 
         # Call the ambiq command
-        asb_main()
+        try:
+            asb_main()
+
+        except Exception:
+            return 1
+
+        return 0
