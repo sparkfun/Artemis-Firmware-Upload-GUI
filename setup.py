@@ -45,7 +45,7 @@ import subprocess
 import sys
 
 # sub folder for our resource files
-_RESOURCE_DIRECTORY = "RTK_Firmware_Uploader/resource"
+_RESOURCE_DIRECTORY = "artemis_uploader/resource"
 
 #https://stackoverflow.com/a/50914550
 def resource_path(relative_path):
