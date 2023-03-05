@@ -379,7 +379,7 @@ class MainWindow(QMainWindow):
         self.disable_interface(False)
 
         # update the status message
-        msg = "successfully" if status == 0 else "with an error"
+        msg = "" # if status == 0 else "with an error"
         self.statusBar().showMessage("The upload process finished " + msg, 2000)
 
     # --------------------------------------------------------------
