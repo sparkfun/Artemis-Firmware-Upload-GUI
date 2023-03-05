@@ -1,0 +1,32 @@
+# Workflow that builds the application, but doens't add to a release.
+#
+# This will run on a push that doesn't have a vesion (release) tag
+
+name: non-release-build
+
+# Controls when the workflow will run
+on:
+  # Trigger on push - when a version tag isn't set
+  # push:
+    # branches:
+      # - master
+    # tags-ignore:
+      # - "v*.*.*"
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Run each plaform build workflows as seperate jobs
+jobs:
+  # Build the installer on mac
+  call-macos-build:
+    uses: ./.github/workflows/build-macos.yml
+          
+  call-linux-build:
+    uses: ./.github/workflows/build-linux.yml
+    
+  call-windows-build:
+    uses: ./.github/workflows/build-windows.yml
+
+  call-python-build:
+    uses: ./.github/workflows/build-python.yml

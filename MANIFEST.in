@@ -1,0 +1,2 @@
+include artemis_uploader/resource/*.*
+include DESCRIPTION.md
