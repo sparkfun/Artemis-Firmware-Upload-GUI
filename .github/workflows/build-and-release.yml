@@ -1,0 +1,65 @@
+# This is a basic workflow to help you get started with Actions
+
+name: build-and-release
+
+# Controls when the workflow will run
+on:
+  
+  # Trigger on a push
+  #push:
+  
+  # Trigger on a published release
+  release:
+    types: [published]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # Build the installer on mac
+  call-macos-build:
+    uses: ./.github/workflows/build-macos.yml
+          
+  call-linux-build:
+    uses: ./.github/workflows/build-linux.yml
+    
+  call-windows-build:
+    uses: ./.github/workflows/build-windows.yml
+    
+  call-python-build:
+    uses: ./.github/workflows/build-python.yml
+
+  # Using the outputs of the build
+  deploy-builds: 
+  
+    # Only do this on a release - note - filtering release types in the above "on:" statement
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    needs: [call-macos-build, call-linux-build, call-windows-build, call-python-build]
+    steps:
+      # Download the generated app files that are part of the release
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.call-macos-build.outputs.build-file }}
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.call-linux-build.outputs.build-file }}
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.call-windows-build.outputs.build-file }}
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.call-python-build.outputs.build-file }}
+      - name: Output Listing
+        run: ls -la
+        
+      - name: Publish Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ needs.call-macos-build.outputs.build-file }}
+            ${{ needs.call-linux-build.outputs.build-file }}
+            ${{ needs.call-windows-build.outputs.build-file }}
+            ${{ needs.call-python-build.outputs.build-package }}
+

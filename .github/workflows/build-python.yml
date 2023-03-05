@@ -1,0 +1,60 @@
+# This is a basic workflow to help you get started with Actions
+
+name: build-python
+
+# Controls when the workflow will run
+on:
+  # this is a called workflow
+  workflow_call:
+    outputs:
+      build-file:
+        description: "The output of this build procsss"
+        value: ${{ jobs.python-build-job.outputs.install-file }}
+      build-package:
+        description: "The output of this build procsss"
+        value: ${{ jobs.python-build-job.outputs.install-package }}
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # Build the installer on mac
+  python-build-job:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    
+    # Output
+    outputs:
+      install-file: ${{ steps.output-installer.outputs.filename }}
+      install-package: ${{ steps.output-installer.outputs.packagename }}
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # Setup python
+      - name: System Setup
+        run: |
+          pip3 install setuptools 
+
+      # Build the installer
+      - name: Build Python Installer
+        run: |
+          python setup.py sdist
+          
+      - uses: actions/upload-artifact@v3
+        with:
+          name: python-install-package
+          path: dist
+
+      - name: Extract package name
+        run: |
+          cd dist
+          echo "PACKAGE_NAME=$(ls *.tar.gz)" >> $GITHUB_ENV
+
+      - id: output-installer
+        run: |
+          echo "filename=python-install-package" >> $GITHUB_OUTPUT
+          echo "packagename=${{ env.PACKAGE_NAME }}" >> $GITHUB_OUTPUT

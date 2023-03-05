@@ -1,0 +1,62 @@
+# This is a basic workflow to help you get started with Actions
+
+name: build-windows
+
+# Controls when the workflow will run
+on:
+  # this is a called workflow
+  workflow_call:
+    outputs:
+      build-file:
+        description: "The output of this build procsss"
+        value: ${{ jobs.windows-build-job.outputs.install-file }}
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # Build the installer on mac
+  windows-build-job:
+    # The type of runner that the job will run on
+    runs-on: windows-latest
+    
+    # Output
+    outputs:
+      install-file: ${{ steps.output-installer.outputs.filename }}
+      
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # Setup python
+      - name: System Setup
+        run: |
+          pip3 install pyserial pycryptodome pyinstaller pyqt5 darkdetect
+        
+      # Build the installer
+      - name: Build Windows Installer
+        run: |
+          pyinstaller --onefile --name ArtemisUploader --noconsole --distpath=. --icon=artemis_uploader\resource\artemis-uploader.ico   --add-data="artemis_uploader\resource\*;resource\" artemis_upload.py
+                    
+      - name: Compress Installer
+        shell: powershell
+        run: |
+          $compress = @{
+            Path = ".\ArtemisUploader.exe"
+            CompressionLevel = "Fastest"
+            DestinationPath = ".\ArtemisUploader.win.zip"
+            }
+          Compress-Archive @compress
+        
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ArtemisUploader.win.zip
+          path: ArtemisUploader.win.zip
+          
+      - id: output-installer
+        run: echo "::set-output name=filename::ArtemisUploader.win.zip"
+    
+        
+        

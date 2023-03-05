@@ -1,0 +1,55 @@
+# This is a basic workflow to help you get started with Actions
+
+name: build-macos
+
+# Controls when the workflow will run
+on:
+  # this is a called workflow
+  workflow_call:
+    outputs:
+      build-file:
+        description: "The output of this build procsss"
+        value: ${{ jobs.macos-build-job.outputs.install-file }}
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # Build the installer on mac
+  macos-build-job:
+    # The type of runner that the job will run on
+    runs-on: macos-latest
+    
+    # Output
+    outputs:
+      install-file: ${{ steps.output-installer.outputs.filename }}
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # Setup python
+      - name: System Setup
+        run: |
+          pip3 install pyserial pycryptodome pyinstaller Pillow pyqt5 darkdetect
+          brew install create-dmg
+
+      # Build the installer
+      - name: Build Mac Installer
+        run: |
+          pyinstaller --windowed -n ArtemisUploader --noconsole --distpath=. --icon=artemis_uploader/resource/artemis-uploader.ico   --add-data="artemis_uploader/resource/*:resource/" artemis_upload.py
+          mkdir tmp
+          mv "ArtemisUploader.app" "tmp/"
+          create-dmg --volicon "artemis_uploader/resource/sparkdisk.icns" --background "artemis_uploader/resource/sfe_logo_med.png" --hide-extension "ArtemisUploader.app" --icon "ArtemisUploader.app" 100 100 --window-size 600 440 --app-drop-link 400 100 "ArtemisUploader.dmg" "tmp/"
+          
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ArtemisUploader.dmg
+          path: ArtemisUploader.dmg
+
+      - id: output-installer
+        run: echo "::set-output name=filename::ArtemisUploader.dmg"
+        
+        
