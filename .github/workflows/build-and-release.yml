@@ -6,7 +6,7 @@ name: build-and-release
 on:
   
   # Trigger on a push
-  push:
+  #push:
   
   # Trigger on a published release
   release:
@@ -61,5 +61,5 @@ jobs:
             ${{ needs.call-macos-build.outputs.build-file }}
             ${{ needs.call-linux-build.outputs.build-file }}
             ${{ needs.call-windows-build.outputs.build-file }}
-            ${{ needs.call-python-build.outputs.build-file }}            
+            ${{ needs.call-python-build.outputs.build-package }}
 

@@ -9,18 +9,22 @@ on:
     outputs:
       build-file:
         description: "The output of this build procsss"
-        value: ${{ jobs.linux-build-job.outputs.install-file }}
+        value: ${{ jobs.python-build-job.outputs.install-file }}
+      build-package:
+        description: "The output of this build procsss"
+        value: ${{ jobs.python-build-job.outputs.install-package }}
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # Build the installer on mac
-  linux-build-job:
+  python-build-job:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
     
     # Output
     outputs:
       install-file: ${{ steps.output-installer.outputs.filename }}
+      install-package: ${{ steps.output-installer.outputs.packagename }}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -45,7 +49,12 @@ jobs:
           name: python-install-package
           path: dist
 
+      - name: Extract package name
+        run: |
+          cd dist
+          echo "PACKAGE_NAME=$(ls *.tar.gz)" >> $GITHUB_ENV
+
       - id: output-installer
-        run: echo "::set-output name=filename::python-install-package"
-        
-        
+        run: |
+          echo "filename=python-install-package" >> $GITHUB_OUTPUT
+          echo "packagename=${{ env.PACKAGE_NAME }}" >> $GITHUB_OUTPUT
