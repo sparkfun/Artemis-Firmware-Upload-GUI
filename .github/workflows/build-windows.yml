@@ -56,7 +56,7 @@ jobs:
           path: ArtemisUploader.win.zip
           
       - id: output-installer
-        run: echo "::set-output name=filename::ArtemisUploader.win.zip"
+        run: echo "filename=ArtemisUploader.win.zip" >> $env:GITHUB_OUTPUT
     
         
         

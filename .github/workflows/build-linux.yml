@@ -48,6 +48,6 @@ jobs:
           path: ArtemisUploader.linux.gz
 
       - id: output-installer
-        run: echo "::set-output name=filename::ArtemisUploader.linux.gz"
+        run: echo "filename=ArtemisUploader.linux.gz" >> $GITHUB_OUTPUT
         
         

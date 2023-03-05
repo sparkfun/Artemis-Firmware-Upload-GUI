@@ -50,6 +50,6 @@ jobs:
           path: ArtemisUploader.dmg
 
       - id: output-installer
-        run: echo "::set-output name=filename::ArtemisUploader.dmg"
+        run: echo "filename=ArtemisUploader.dmg" >> $GITHUB_OUTPUT
         
         
