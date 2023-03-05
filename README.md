@@ -39,6 +39,7 @@ Clicking the ```Update Bootloader``` button on the lower left of the application
 
 ![Bootloader Upload](images/bootloader-upload.png)
 
+**Note:** the bootloader update sometimes fails to start correctly. You may need to repeat the update more than once until it succeeds.
 
 ## Installation
 Installation binaries are available for all major platforms (macOS, Window, and Linux) on the release page of the Artemis Uploader App github repository. 
