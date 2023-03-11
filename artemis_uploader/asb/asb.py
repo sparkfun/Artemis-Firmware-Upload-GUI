@@ -421,11 +421,19 @@ def upload(args, verboseprint):
         with serial.Serial(args.port, args.baud, timeout=connection_timeout) as ser:
             #DTR is driven low when serial port open. DTR has now pulled RST low.
 
-            time.sleep(0.008) #3ms and 10ms work well. Not 50, and not 0.
+            time.sleep(0.01) #3ms and 10ms work well. Not 50, and not 0.
 
             #Setting RTS/DTR high causes the bootload pin to go high, then fall across 100ms
             ser.setDTR(0) #Set DTR high
             ser.setRTS(0) #Set RTS high - support the CH340E
+
+            time.sleep(0.01) #A double-reset seems to work best on macOS
+            ser.setDTR(1)
+            ser.setRTS(1)
+
+            time.sleep(0.01)
+            ser.setDTR(0)
+            ser.setRTS(0)
 
             #Give bootloader a chance to run and check bootload pin before communication begins. But must initiate com before bootloader timeout of 250ms.
             time.sleep(0.100) #100ms works well
