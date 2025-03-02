@@ -402,11 +402,11 @@ def upload_firmware(binfile, port, baud, timeout=0.5):
                 verboseprint("Failed to enter bootload phase")
 
             ser.close()
-            try += 1
+            attempt = attempt + 1
 
-        if(entered_bootloader == False):
+        if (entered_bootloader == False):
             print("Target failed to enter bootload mode. Verify the right COM port is selected and that your board has the SVL bootloader.")
-        elif(bl_success == False):
+        elif (bl_success == False):
             print("Target entered bootloader mode but firmware upload failed. Verify the right COM port is selected and that your board has the SVL bootloader.")
         else:
             print("Success!")
