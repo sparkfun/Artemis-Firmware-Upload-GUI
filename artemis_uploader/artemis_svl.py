@@ -377,14 +377,13 @@ def upload_firmware(binfile, port, baud, timeout=0.5):
         while (attempt < num_tries) and (bl_success == False):
 
             # Set dtr and rts before opening the port
-            ser.dtr=True
-            ser.rts=True
+            ser.dtr=False
+            ser.rts=False
 
             ser.open()
 
-            time.sleep(0.01)
-            ser.dtr=False
-            ser.rts=False
+            ser.dtr=True
+            ser.rts=True
 
             # startup time for Artemis bootloader   (experimentally determined - 0.095 sec min delay)
             t_su = 0.15
