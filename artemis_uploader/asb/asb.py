@@ -426,18 +426,18 @@ def upload(args, verboseprint):
         loadSuccess = False
 
         # Set dtr and rts before opening the port
-        ser.dtr=False
-        ser.rts=False
+        ser.dtr=True
+        ser.rts=True
 
         ser.open()
 
         time.sleep(0.01) #3ms and 10ms work well. Not 50, and not 0.
 
-        ser.dtr=True
-        ser.rts=True
+        ser.dtr=False
+        ser.rts=False
 
         #Give bootloader a chance to run and check bootload pin before communication begins. But must initiate com before bootloader timeout of 250ms.
-        time.sleep(0.050)
+        time.sleep(0.15)
 
         ser.reset_input_buffer()    # reset the input bufer to discard any UART traffic that the device may have generated
 
