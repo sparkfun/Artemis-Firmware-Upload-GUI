@@ -25,10 +25,10 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
       # Setup python
       - name: System Setup
@@ -44,7 +44,7 @@ jobs:
           mv "ArtemisUploader.app" "tmp/"
           create-dmg --volicon "artemis_uploader/resource/sparkdisk.icns" --background "artemis_uploader/resource/sfe_logo_med.png" --hide-extension "ArtemisUploader.app" --icon "ArtemisUploader.app" 100 100 --window-size 600 440 --app-drop-link 400 100 "ArtemisUploader.dmg" "tmp/"
           
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ArtemisUploader.dmg
           path: ArtemisUploader.dmg

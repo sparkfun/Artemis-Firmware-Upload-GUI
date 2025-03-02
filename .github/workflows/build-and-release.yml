@@ -55,7 +55,7 @@ jobs:
         run: ls -la
         
       - name: Publish Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ needs.call-macos-build.outputs.build-file }}
