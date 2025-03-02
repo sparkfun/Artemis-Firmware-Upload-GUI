@@ -378,11 +378,17 @@ def upload(args, verboseprint):
     connection_timeout = 5
 
     print('Connecting over serial port {}...'.format(args.port), flush=True)
-    print('Baud rate:',args.baud)
+    print('Requested baud rate:',args.baud)
+
+    useBaud = int(args.baud)
+    if (useBaud > 115200):
+        print('Limiting baud rate to 115200')
+        useBaud = 115200
+    useBaud = str(useBaud)
 
     #Check to see if the com port is available
     try: 
-        with serial.Serial(args.port, args.baud, timeout=connection_timeout) as ser:
+        with serial.Serial(args.port, useBaud, timeout=connection_timeout) as ser:
             pass
     except:
 
@@ -417,7 +423,7 @@ def upload(args, verboseprint):
     # https://community.sparkfun.com/t/unable-to-flash-artemis-thing-plus-on-macos-sequoia/60766/6
     ser = serial.Serial()
     ser.port = args.port
-    ser.baudrate = args.baud
+    ser.baudrate = useBaud
     ser.timeout = connection_timeout
 
     loadTries = 0
@@ -431,13 +437,13 @@ def upload(args, verboseprint):
 
         ser.open()
 
-        time.sleep(0.01) #3ms and 10ms work well. Not 50, and not 0.
+        time.sleep(0.008) #3ms and 10ms work well. Not 50, and not 0.
 
         ser.dtr=False # Set RTS and DTR high
         ser.rts=False
 
         #Give bootloader a chance to run and check bootload pin before communication begins. But must initiate com before bootloader timeout of 250ms.
-        time.sleep(0.15)
+        time.sleep(0.1) # 100ms works well
 
         ser.reset_input_buffer()    # reset the input bufer to discard any UART traffic that the device may have generated
 
