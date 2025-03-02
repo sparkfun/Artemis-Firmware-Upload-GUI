@@ -367,7 +367,7 @@ def upload_firmware(binfile, port, baud, timeout=0.5):
 
         # Instantiate ser here and set dtr and rts before opening the port
         # https://community.sparkfun.com/t/unable-to-flash-artemis-thing-plus-on-macos-sequoia/60766/6
-        ser = serial.Serial
+        ser = serial.Serial()
         ser.port = port
         ser.baudrate = baud
         ser.timeout = timeout
