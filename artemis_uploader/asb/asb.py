@@ -426,10 +426,12 @@ def upload(args, verboseprint):
         loadSuccess = False
 
         # Set dtr and rts before opening the port
-        ser.dtr=False
-        ser.rts=False
+        ser.dtr=True
+        ser.rts=True
 
         ser.open()
+        ser.dtr=False
+        ser.rts=False
 
         time.sleep(0.008) #3ms and 10ms work well. Not 50, and not 0.
 
