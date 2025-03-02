@@ -365,44 +365,51 @@ def upload_firmware(binfile, port, baud, timeout=0.5):
         bl_success = False
         entered_bootloader = False
 
-        for _ in range(num_tries):
+        # Instantiate ser here and set dtr and rts before opening the port
+        # https://community.sparkfun.com/t/unable-to-flash-artemis-thing-plus-on-macos-sequoia/60766/6
+        ser = serial.Serial
+        ser.port = port
+        ser.baudrate = baud
+        ser.timeout = timeout
 
+        attempt = 0
 
+        while (attempt < num_tries) and (bl_success == False):
 
-            with serial.Serial(port, baud, timeout=timeout) as ser:
+            # Set dtr and rts before opening the port
+            ser.dtr=False
+            ser.rts=False
 
-                # https://community.sparkfun.com/t/unable-to-flash-artemis-thing-plus-on-macos-sequoia/60766/6
-                ser.dtr=False
-                ser.rts=False
+            ser.open()
 
-                time.sleep(0.01)
-                ser.dtr=True
-                ser.rts=True
+            time.sleep(0.01)
+            ser.dtr=True
+            ser.rts=True
 
-                # startup time for Artemis bootloader   (experimentally determined - 0.095 sec min delay)
-                t_su = 0.15
+            # startup time for Artemis bootloader   (experimentally determined - 0.095 sec min delay)
+            t_su = 0.15
 
-                time.sleep(t_su)        # Allow Artemis to come out of reset
+            time.sleep(t_su) # Allow Artemis to come out of reset
 
-                # Perform baud rate negotiation
-                entered_bootloader = phase_setup(ser)
+            ser.reset_input_buffer() # reset the input bufer to discard any UART traffic that the device may have generated
 
-                if(entered_bootloader == True):
-                    bl_success = phase_bootload(ser, binfile)
-                    if(bl_success == True):     # Bootload
-                        #print("Bootload complete!")
-                        break
-                else:
-                    verboseprint("Failed to enter bootload phase")
+            # Perform baud rate negotiation
+            entered_bootloader = phase_setup(ser)
 
+            if(entered_bootloader == True):
+                bl_success = phase_bootload(ser, binfile)
+            else:
+                verboseprint("Failed to enter bootload phase")
 
-
-            if(bl_success == True):
-                break
+            ser.close()
+            try += 1
 
         if(entered_bootloader == False):
-            print(
-                "Target failed to enter bootload mode. Verify the right COM port is selected and that your board has the SVL bootloader.")
+            print("Target failed to enter bootload mode. Verify the right COM port is selected and that your board has the SVL bootloader.")
+        elif(bl_success == False):
+            print("Target entered bootloader mode but firmware upload failed. Verify the right COM port is selected and that your board has the SVL bootloader.")
+        else:
+            print("Success!")
 
     except serial.SerialException:
         phase_serial_port_help(port)

@@ -413,43 +413,47 @@ def upload(args, verboseprint):
     #fails to correctly catch the BOOT signal about 1 out of ten times.
     #Auto-retry this number of times before we give up.
 
+    # Instantiate ser here and set dtr and rts before opening the port
+    # https://community.sparkfun.com/t/unable-to-flash-artemis-thing-plus-on-macos-sequoia/60766/6
+    ser = serial.Serial
+    ser.port = args.port
+    ser.baudrate = args.baud
+    ser.timeout = connection_timeout
+
     loadTries = 0
 
     while loadTries < 3: 
         loadSuccess = False
 
-        with serial.Serial(args.port, args.baud, timeout=connection_timeout) as ser:
-            #DTR is driven low when serial port open. DTR has now pulled RST low.
+        # Set dtr and rts before opening the port
+        ser.dtr=False
+        ser.rts=False
 
-            time.sleep(0.01) #3ms and 10ms work well. Not 50, and not 0.
+        ser.open()
 
-            #Setting RTS/DTR high causes the bootload pin to go high, then fall across 100ms
-            ser.dtr=True #Set DTR high
-            ser.rts=True #Set RTS high - support the CH340E
+        time.sleep(0.01) #3ms and 10ms work well. Not 50, and not 0.
 
-            time.sleep(0.01) #A double-reset seems to work best on macOS
-            ser.dtr=False
-            ser.rts=False
+        ser.dtr=True
+        ser.rts=True
 
-            time.sleep(0.01)
-            ser.dtr=True
-            ser.rts=True
+        #Give bootloader a chance to run and check bootload pin before communication begins. But must initiate com before bootloader timeout of 250ms.
+        time.sleep(0.150)
 
-            #Give bootloader a chance to run and check bootload pin before communication begins. But must initiate com before bootloader timeout of 250ms.
-            time.sleep(0.100) #100ms works well
+        ser.reset_input_buffer()    # reset the input bufer to discard any UART traffic that the device may have generated
 
-            ser.reset_input_buffer()    # reset the input bufer to discard any UART traffic that the device may have generated
+        connect_device(ser, args, verboseprint)
 
-            connect_device(ser, args, verboseprint)
+        loadTries = loadTries + 1
+        
+        if(loadSuccess == True):
+            ser.close()
+            print("Tries =", loadTries)
+            print('Upload complete')
+            exit()
+        else:
+            print("Fail")
 
-            loadTries = loadTries + 1
-            
-            if(loadSuccess == True):
-                print("Tries =", loadTries)
-                print('Upload complete')
-                exit()
-            else:
-                print("Fail")
+        ser.close()
             
     print("Tries =", loadTries)
     print("Upload failed")
