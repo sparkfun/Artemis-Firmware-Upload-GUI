@@ -387,7 +387,7 @@ def upload_firmware(binfile, port, baud, timeout=0.5):
             ser.rts=True
 
             # startup time for Artemis bootloader   (experimentally determined - 0.095 sec min delay)
-            t_su = 0.15
+            t_su = 0.05
 
             time.sleep(t_su) # Allow Artemis to come out of reset
 

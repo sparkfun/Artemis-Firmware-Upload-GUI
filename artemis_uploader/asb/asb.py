@@ -437,7 +437,7 @@ def upload(args, verboseprint):
         ser.rts=True
 
         #Give bootloader a chance to run and check bootload pin before communication begins. But must initiate com before bootloader timeout of 250ms.
-        time.sleep(0.150)
+        time.sleep(0.050)
 
         ser.reset_input_buffer()    # reset the input bufer to discard any UART traffic that the device may have generated
 
