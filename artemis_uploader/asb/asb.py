@@ -430,13 +430,11 @@ def upload(args, verboseprint):
         ser.rts=True
 
         ser.open()
-        ser.dtr=False
-        ser.rts=False
 
         time.sleep(0.008) #3ms and 10ms work well. Not 50, and not 0.
 
-        ser.dtr=True
-        ser.rts=True
+        ser.dtr=False # Set RTS and DTR high
+        ser.rts=False
 
         #Give bootloader a chance to run and check bootload pin before communication begins. But must initiate com before bootloader timeout of 250ms.
         time.sleep(0.1)

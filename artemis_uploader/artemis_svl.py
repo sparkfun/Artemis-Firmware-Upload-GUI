@@ -382,7 +382,7 @@ def upload_firmware(binfile, port, baud, timeout=0.5):
 
             ser.open()
 
-            ser.dtr=True
+            ser.dtr=True # True sets the CH340 RTS pin low
             ser.rts=True
 
             # startup time for Artemis bootloader   (experimentally determined - 0.095 sec min delay)
