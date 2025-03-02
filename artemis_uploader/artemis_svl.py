@@ -367,7 +367,17 @@ def upload_firmware(binfile, port, baud, timeout=0.5):
 
         for _ in range(num_tries):
 
+
+
             with serial.Serial(port, baud, timeout=timeout) as ser:
+
+                # https://community.sparkfun.com/t/unable-to-flash-artemis-thing-plus-on-macos-sequoia/60766/6
+                ser.dtr=False
+                ser.rts=False
+
+                time.sleep(0.01)
+                ser.dtr=True
+                ser.rts=True
 
                 # startup time for Artemis bootloader   (experimentally determined - 0.095 sec min delay)
                 t_su = 0.15
