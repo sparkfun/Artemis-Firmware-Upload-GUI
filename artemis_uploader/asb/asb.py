@@ -420,7 +420,6 @@ def upload(args, verboseprint):
     #Auto-retry this number of times before we give up.
 
     # Instantiate ser here and set dtr and rts before opening the port
-    # https://community.sparkfun.com/t/unable-to-flash-artemis-thing-plus-on-macos-sequoia/60766/6
     ser = serial.Serial()
     ser.port = args.port
     ser.baudrate = useBaud
@@ -437,12 +436,22 @@ def upload(args, verboseprint):
 
         ser.open()
 
-        time.sleep(0.008) #3ms and 10ms work well. Not 50, and not 0.
-
+        # RTS behaves differently on macOS. Use a double-reset
+        time.sleep(0.01)
         ser.dtr=False # Set RTS and DTR high
         ser.rts=False
+        time.sleep(0.01)
+        ser.dtr=True # Set RTS and DTR low
+        ser.rts=True
 
-        #Give bootloader a chance to run and check bootload pin before communication begins. But must initiate com before bootloader timeout of 250ms.
+        time.sleep(0.008) #3ms and 10ms work well. Not 50, and not 0.
+
+        # Set RTS and DTR high
+        # This causes BOOT to go high - and then decay back to zero
+        ser.dtr=False
+        ser.rts=False
+
+        #Give bootloader a chance to run and check BOOT pin before communication begins. But must initiate com before bootloader timeout of 250ms.
         time.sleep(0.1) # 100ms works well
 
         ser.reset_input_buffer()    # reset the input bufer to discard any UART traffic that the device may have generated
