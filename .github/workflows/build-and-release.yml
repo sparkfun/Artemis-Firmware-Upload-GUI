@@ -39,16 +39,16 @@ jobs:
     needs: [call-macos-build, call-linux-build, call-windows-build, call-python-build]
     steps:
       # Download the generated app files that are part of the release
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.call-macos-build.outputs.build-file }}
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.call-linux-build.outputs.build-file }}
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.call-windows-build.outputs.build-file }}
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.call-python-build.outputs.build-file }}
       - name: Output Listing
