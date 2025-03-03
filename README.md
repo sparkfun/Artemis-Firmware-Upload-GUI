@@ -49,11 +49,8 @@ Installation binaries are available for all major platforms (macOS, Window, and 
 ### Windows
 * Download the [github release](https://github.com/sparkfun/Artemis-Firmware-Upload-GUI/releases) zip file - *ArtemisUploader.win.zip*
 * Unzip the release file - *ArtemisUploader.zip*
-* This results in the application executable, *ArtemisUploader.exe*
+* This results in the application executable *ArtemisUploader.exe*
 * Double-click *ArtemisUploader.exe* to start the application
-
-![Artemis Uploader on Windows](images/artemis-windows.png)
-
 * The Windows EXE isn't signed, so you will see the following warning. Click **More info**:
 
 ![Artemis Uploader on Windows - Warning 1](images/artemis-windows-1.png)
@@ -61,6 +58,8 @@ Installation binaries are available for all major platforms (macOS, Window, and 
 * Click **Run anyway** to start the GUI:
 
 ![Artemis Uploader on Windows - Warning 2](images/artemis-windows-2.png)
+
+![Artemis Uploader on Windows](images/artemis-windows.png)
 
 ### macOS
 
