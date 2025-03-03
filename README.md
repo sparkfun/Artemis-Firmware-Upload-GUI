@@ -27,7 +27,7 @@ If you need to install the application, see the [Installation Section](#installa
 * Attach the Artemis target board over USB
 * Select the COM port from the dropdown menu
 * Adjust the Baud Rate as desired
-* Click the  ```Upload Firmware``` Button in the lower left of the app.
+* Click the  ```Upload Firmware``` Button in the lower right corner of the app.
 
 The selected firmware is then uploaded to the connected SparkFun Artemis product. Upload information and progress are displayed in the output portion of the interface. 
 
@@ -52,33 +52,68 @@ Installation binaries are available for all major platforms (macOS, Window, and 
 * This results in the application executable, *ArtemisUploader.exe*
 * Double-click *ArtemisUploader.exe* to start the application
 
-![macOS Artemis Uploader](images/artemis-windows.png)
+![Artemis Uploader on Windows](images/artemis-windows.png)
+
+* The Windows EXE isn't signed, so you will see the following warning. Click **More info**:
+
+![Artemis Uploader on Windows - Warning 1](images/artemis-windows-1.png)
+
+* Click **Run anyway** to start the GUI:
+
+![Artemis Uploader on Windows - Warning 2](images/artemis-windows-2.png)
 
 ### macOS
+
+* Check that you have the latest WCH drivers installed for the CH340 interface chip.
+    * Full instructions can be found in our [CH340 Tutorial](https://learn.sparkfun.com/tutorials/how-to-install-ch340-drivers/all#mac-osx)
+    * Here is a link to the WCH downloads page for the [CH340 / CH341 macOS driver](https://www.wch-ic.com/downloads/CH341SER_MAC_ZIP.html)
+    * The Zip file contains more instructions: CH34X_DRV_INSTAL_INSTRUCTIONS.pdf
+
 * Download the [github release](https://github.com/sparkfun/Artemis-Firmware-Upload-GUI/releases) file - *ArtemisUploader.dmg*
-* Double click on the file to unzip the file to *ArtemisUploader.dmg*
-* Double click the *ArtemisUploader.dmg* file to mount the disk image. 
+* Click on the downloads icon
+* Click the *ArtemisUploader.dmg* file to mount the disk image
 * The following Finder window, with the contents of the file will open
 
 ![Artemis Uploader macOS Finder](images/macos-finder.png)
 
-* Install the *ArtemisUploader.app* by dragging it on the *Applications* in the ArtemisUploader Finder Window, or copying the file to a desired location.
-* Once complete, unmount the ArtemisUploader disk image by right-clicking on the mounted disk in Finder and ejecting it.
+* Install the *ArtemisUploader.app* by dragging it onto the *Applications* icon in the ArtemisUploader Finder Window, or copying the file to a desired location.
+* Once complete, unmount the ArtemisUploader disk image by clicking on the disk eject in Finder.
+
+![Artemis Uploader macOS Finder](images/artemis-macos-install-1.png)
 
 To launch the Artemis Uploader application:
+
 * Double-click ArtemisUploader.app to launch the application
-* The ArtemisUploader.app isn't signed, so macOS won't run the application, and will display a warning dialog. Dismiss this dialog.
-* To approve app execution bring up the macOS *System Preferences* and navigate to: *Security & Privacy > General*. 
-* On this page, select the *Open Anyway* button to launch the ArtemisUploader application.
 
+![Artemis Uploader macOS Finder](images/artemis-macos-install-2.png)
 
-![macOS Security](images/macos-security.png)
+* The ArtemisUploader.app isn't signed, so macOS won't run the application, and will display a warning dialog. Click **Done**.
 
-* Once selected, macOS will present one last dialog. Select *Open* to run the application. The ArtemisUploader will now start.
+![Artemis Uploader macOS Finder](images/artemis-macos-install-3.png)
 
-![macOS Artemis Uploader](images/artemis-macos.png)
+* To approve app execution bring up the macOS *System Settings* and navigate to *Privacy & Security*. 
+* On this page, select the **Open Anyway** button to launch the ArtemisUploader application.
+
+![Artemis Uploader macOS System Settings](images/artemis-macos-install-4.png)
+
+* Once selected, macOS will present one last dialog. Select **Open Anyway** to run the application.
+
+![Artemis Uploader macOS System Settings](images/artemis-macos-install-5.png)
+
+* Enter your password and click The ArtemisUploader will now start.
+
+![Artemis Uploader macOS System Settings](images/artemis-macos-install-6.png)
+
+* Ensure you select the correct *COM Port*. The port name should begin with **cu.wchusbserial**.
+
+![macOS Artemis Uploader](images/artemis-macos-1.png)
+
+* When you select the *Firmware File*, click **Allow** to allow the app to open the file.
+
+![macOS Artemis Uploader](images/artemis-macos-2.png)
 
 ### Linux
+
 * Download the [github release](https://github.com/sparkfun/Artemis-Firmware-Upload-GUI/releases) file - *ArtemisUploader.linux.gz*
 * Unzip the release file - *ArtemisUploader.linux.gz*
 * Un-gzip the file, either by double-clicking in on the desktop, or using the `gunzip` command in a terminal window. This results in the file *ArtemisUploader* 
@@ -86,7 +121,6 @@ To launch the Artemis Uploader application:
 * Once the application has execute permission, you can start the application a terminal window. Change directory's to the application location and issue `./ArtemisUploader`
 
 ![Linux Artemis Uploader](images/artemis-linux.png)
-
 
 ### Python Package
 The Artemis Uploader App is also provided as an installable Python package. This is advantageous for platforms that lack a pre-compiled application. 
